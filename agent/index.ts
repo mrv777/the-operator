@@ -68,6 +68,15 @@ async function runCycle(
       continue;
     }
 
+    // Skip re-validation if signal is WATCHING and wallet count hasn't increased
+    if (
+      signal.status === "WATCHING" &&
+      event.existingSignalId !== null &&
+      signal.wallet_count === event.walletCount
+    ) {
+      continue;
+    }
+
     const validation = await validateSignal(db, signal, config);
 
     if (!validation.passed) {
