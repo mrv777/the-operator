@@ -21,14 +21,14 @@ import type {
 export function getSmDexTrades(
   chain: string = "solana",
 ): Promise<NansenCliResult<SmDexTradesResponse>> {
-  return nansenCliCall(`smart-money dex-trades --chain ${chain}`);
+  return nansenCliCall(`research smart-money dex-trades --chain ${chain}`);
 }
 
 export function getSmNetflow(
   chain: string = "solana",
   token?: string,
 ): Promise<NansenCliResult<SmNetflowResponse>> {
-  let cmd = `smart-money netflow --chain ${chain}`;
+  let cmd = `research smart-money netflow --chain ${chain}`;
   if (token) cmd += ` --token ${token}`;
   return nansenCliCall(cmd);
 }
@@ -37,7 +37,7 @@ export function getSmHoldings(
   chain: string = "solana",
   token?: string,
 ): Promise<NansenCliResult<SmHoldingsResponse>> {
-  let cmd = `smart-money holdings --chain ${chain}`;
+  let cmd = `research smart-money holdings --chain ${chain}`;
   if (token) cmd += ` --token ${token}`;
   return nansenCliCall(cmd);
 }
@@ -46,7 +46,7 @@ export function getSmDcas(
   chain: string = "solana",
   token?: string,
 ): Promise<NansenCliResult<SmDcasResponse>> {
-  let cmd = `smart-money dcas --chain ${chain}`;
+  let cmd = `research smart-money dcas --chain ${chain}`;
   if (token) cmd += ` --token ${token}`;
   return nansenCliCall(cmd);
 }
@@ -54,14 +54,14 @@ export function getSmDcas(
 export function getSmPerpTrades(
   chain: string = "solana",
 ): Promise<NansenCliResult<SmPerpTradesResponse>> {
-  return nansenCliCall(`smart-money perp-trades --chain ${chain}`);
+  return nansenCliCall(`research smart-money perp-trades --chain ${chain}`);
 }
 
 export function getSmHistoricalHoldings(
   chain: string = "solana",
   wallet?: string,
 ): Promise<NansenCliResult<SmHistoricalHoldingsResponse>> {
-  let cmd = `smart-money historical-holdings --chain ${chain}`;
+  let cmd = `research smart-money historical-holdings --chain ${chain}`;
   if (wallet) cmd += ` --wallet ${wallet}`;
   return nansenCliCall(cmd);
 }
@@ -72,21 +72,21 @@ export function getTokenInfo(
   token: string,
   chain: string = "solana",
 ): Promise<NansenCliResult<TokenInfoResponse>> {
-  return nansenCliCall(`token info --token ${token} --chain ${chain}`);
+  return nansenCliCall(`research token info --token ${token} --chain ${chain}`);
 }
 
 export function getTokenFlowIntelligence(
   token: string,
   chain: string = "solana",
 ): Promise<NansenCliResult<TokenFlowIntelligenceResponse>> {
-  return nansenCliCall(`token flow-intelligence --token ${token} --chain ${chain}`);
+  return nansenCliCall(`research token flow-intelligence --token ${token} --chain ${chain}`);
 }
 
 export function getTokenDexTrades(
   token: string,
   chain: string = "solana",
 ): Promise<NansenCliResult<TokenDexTradesResponse>> {
-  return nansenCliCall(`token dex-trades --token ${token} --chain ${chain}`);
+  return nansenCliCall(`research token dex-trades --token ${token} --chain ${chain}`);
 }
 
 // ── Profiler Domain (2 endpoints) ───────────────────────────────────
@@ -95,14 +95,14 @@ export function getProfilerPnlSummary(
   wallet: string,
   chain: string = "solana",
 ): Promise<NansenCliResult<ProfilerPnlSummaryResponse>> {
-  return nansenCliCall(`profiler pnl-summary --address ${wallet} --chain ${chain}`);
+  return nansenCliCall(`research profiler pnl-summary --address ${wallet} --chain ${chain}`);
 }
 
 export function getProfilerTransactions(
   wallet: string,
   chain: string = "solana",
 ): Promise<NansenCliResult<ProfilerTransactionsResponse>> {
-  return nansenCliCall(`profiler transactions --address ${wallet} --chain ${chain}`);
+  return nansenCliCall(`research profiler transactions --address ${wallet} --chain ${chain}`);
 }
 
 // ── Trading Domain (2 endpoints) ────────────────────────────────────

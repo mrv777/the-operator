@@ -109,7 +109,23 @@ function parseCliOutput<T>(raw: string): T {
   }
 
   const jsonStr = raw.substring(start);
-  return JSON.parse(jsonStr) as T;
+  const parsed = JSON.parse(jsonStr);
+
+  // Nansen CLI wraps responses in { success: boolean, data: <payload> }.
+  // Unwrap so callers get the inner payload typed as T.
+  if (
+    parsed &&
+    typeof parsed === "object" &&
+    "success" in parsed &&
+    "data" in parsed
+  ) {
+    if (!parsed.success) {
+      throw new Error(parsed.error ?? parsed.message ?? "CLI returned success=false");
+    }
+    return parsed.data as T;
+  }
+
+  return parsed as T;
 }
 
 export async function nansenCliCall<T>(
