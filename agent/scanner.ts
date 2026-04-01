@@ -190,11 +190,16 @@ export async function scanSmDexTrades(
 
     const inserted = insertSmTrades(db, allRows);
 
+    const uniqueWallets = new Set(allRows.map((r) => r.wallet_address)).size;
+    const uniqueTokens = new Set(allRows.map((r) => r.token_address)).size;
+
     logger.scan(`SM dex-trades scan complete for ${chain}`, {
       cached: response.cached,
       rawSwaps: rawTrades.length,
       tradeRows: allRows.length,
       inserted,
+      uniqueWallets,
+      uniqueTokens,
     });
 
     results.push({

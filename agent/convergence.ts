@@ -97,17 +97,33 @@ export function detectConvergenceEvents(
       byToken.get(key)!.push(trade);
     }
 
+    // Track near-misses for logging
+    let bestNearMiss: { token: string; wallets: number; volume: number } | null = null;
+
     for (const [tokenAddress, trades] of byToken) {
       const buyTrades = trades.filter((t) => t.direction === "buy");
       const sellTrades = trades.filter((t) => t.direction === "sell");
 
       if (buyTrades.length === 0) continue;
 
-      // Wallet independence = distinct SM label types only
+      // Convergence = distinct wallet addresses buying the same token
+      const distinctWallets = new Set(buyTrades.map((t) => t.wallet_address));
       const distinctLabels = getDistinctBuyLabels(buyTrades);
+      const walletCount = distinctWallets.size;
 
-      // Need 3+ distinct label types
-      if (distinctLabels.length < config.convergence.minWallets) continue;
+      // Track near-misses (2+ wallets but below threshold)
+      if (walletCount >= 2 && walletCount < config.convergence.minWallets) {
+        if (!bestNearMiss || walletCount > bestNearMiss.wallets) {
+          bestNearMiss = {
+            token: buyTrades[0].token_symbol ?? tokenAddress.slice(0, 12),
+            wallets: walletCount,
+            volume: buyTrades.reduce((s, t) => s + (t.amount_usd ?? 0), 0),
+          };
+        }
+      }
+
+      // Need 3+ distinct wallets
+      if (walletCount < config.convergence.minWallets) continue;
 
       // Combined buy volume must exceed threshold
       const combinedVolumeUsd = buyTrades.reduce(
@@ -149,12 +165,22 @@ export function detectConvergenceEvents(
         buyTrades,
         sellTrades,
         distinctLabels,
-        walletCount: distinctLabels.length,
+        walletCount,
         combinedVolumeUsd,
         score,
         isContested,
         existingSignalId: existing?.id ?? null,
         alreadyTraded,
+      });
+    }
+
+    // Log near-miss for tuning visibility
+    if (events.length === 0 && bestNearMiss) {
+      logger.signal(`Near-miss: ${bestNearMiss.token} has ${bestNearMiss.wallets} wallets (need ${config.convergence.minWallets})`, {
+        chain,
+        token: bestNearMiss.token,
+        walletCount: bestNearMiss.wallets,
+        volume: bestNearMiss.volume,
       });
     }
   }
