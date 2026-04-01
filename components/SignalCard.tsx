@@ -2,6 +2,7 @@
 
 import { cn } from "@/lib/utils";
 import { truncateAddress, solscanUrl, formatUsd, timeAgo } from "@/lib/utils/format";
+import { Tooltip, HelpIcon } from "@/components/Tooltip";
 
 interface Signal {
   id: number;
@@ -31,10 +32,67 @@ const statusColors: Record<string, string> = {
   CAPPED: "bg-warning/20 text-warning",
 };
 
+const statusDescriptions: Record<string, string> = {
+  DETECTED: "Convergence event just identified, pending validation",
+  VALIDATING: "Running safety checks (liquidity, market cap, etc.)",
+  PASSED: "Passed all checks, score meets threshold — ready to trade",
+  TRADED: "Trade executed for this signal",
+  WATCHING: "Passed safety checks but score is below the trading threshold. Monitoring for changes.",
+  FILTERED: "Failed one or more safety checks",
+  EXPIRED: "Signal aged out of the 24h window without trading",
+  CAPPED: "Would trade but portfolio exposure cap reached",
+};
+
 function ScoreBadge({ score }: { score: number }) {
   const color =
     score >= 80 ? "text-profit" : score >= 70 ? "text-signal" : score >= 50 ? "text-warning" : "text-text-muted";
-  return <span className={cn("font-num font-semibold", color)}>{score}</span>;
+
+  const label =
+    score >= 80 ? "Strong" : score >= 70 ? "Tradeable" : score >= 50 ? "Moderate" : "Weak";
+
+  return (
+    <Tooltip content={<>{label} signal. Scores 70+ are eligible for trading. Based on wallet count, independence, volume concentration, and timing.</>}>
+      <span className={cn("font-num font-semibold cursor-help", color)}>{score}</span>
+    </Tooltip>
+  );
+}
+
+function StatusBadge({ status, filterReason }: { status: string; filterReason: string | null }) {
+  const desc = statusDescriptions[status] ?? status;
+  const content = status === "FILTERED" && filterReason
+    ? <><span className="font-medium">Filtered:</span> {filterReason}</>
+    : desc;
+
+  return (
+    <Tooltip content={content} maxWidth={300}>
+      <span className={cn("text-xs px-2 py-0.5 rounded-full cursor-help", statusColors[status] ?? "text-text-muted")}>
+        {status}
+      </span>
+    </Tooltip>
+  );
+}
+
+function ContestedBadge({ isContested, contestedDetails }: { isContested: boolean; contestedDetails: string | null }) {
+  if (!isContested) {
+    return <span className="text-text-muted">—</span>;
+  }
+
+  let sellerCount = 0;
+  if (contestedDetails) {
+    try {
+      sellerCount = JSON.parse(contestedDetails).length;
+    } catch { /* ignore */ }
+  }
+
+  const detail = sellerCount > 0
+    ? `${sellerCount} SM wallet${sellerCount > 1 ? "s" : ""} selling while others are buying. Mixed conviction — proceed with caution.`
+    : "Some SM wallets are selling this token while others are buying. The signal is not purely bullish.";
+
+  return (
+    <Tooltip content={detail}>
+      <span className="text-warning cursor-help">&#x26A0;&#xFE0F;</span>
+    </Tooltip>
+  );
 }
 
 export function SignalsTable({ signals }: { signals: Signal[] }) {
@@ -42,6 +100,7 @@ export function SignalsTable({ signals }: { signals: Signal[] }) {
     return (
       <div className="bg-bg-card rounded-xl border border-border p-8 text-center">
         <p className="text-text-muted">No signals detected yet</p>
+        <p className="text-text-muted text-xs mt-1">Signals appear when 3+ smart money wallets independently buy the same token within 24 hours</p>
       </div>
     );
   }
@@ -55,11 +114,27 @@ export function SignalsTable({ signals }: { signals: Signal[] }) {
               <th className="text-left p-3 font-medium">Time</th>
               <th className="text-left p-3 font-medium">Token</th>
               <th className="text-left p-3 font-medium">Chain</th>
-              <th className="text-right p-3 font-medium">SM Wallets</th>
-              <th className="text-right p-3 font-medium">Score</th>
-              <th className="text-right p-3 font-medium">Volume</th>
+              <th className="text-right p-3 font-medium">
+                <Tooltip content="Number of distinct smart money wallets buying this token within the convergence window">
+                  <span className="cursor-help">SM Wallets<HelpIcon /></span>
+                </Tooltip>
+              </th>
+              <th className="text-right p-3 font-medium">
+                <Tooltip content="Convergence score (0-100). Based on wallet count, label diversity, volume, and timing. 70+ triggers a trade.">
+                  <span className="cursor-help">Score<HelpIcon /></span>
+                </Tooltip>
+              </th>
+              <th className="text-right p-3 font-medium">
+                <Tooltip content="Combined USD buy volume from all SM wallets in this convergence event">
+                  <span className="cursor-help">Volume<HelpIcon /></span>
+                </Tooltip>
+              </th>
               <th className="text-left p-3 font-medium">Status</th>
-              <th className="text-center p-3 font-medium">Contested</th>
+              <th className="text-center p-3 font-medium">
+                <Tooltip content="Whether SM wallets are also selling this token — a mixed signal">
+                  <span className="cursor-help">Contested<HelpIcon /></span>
+                </Tooltip>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -99,18 +174,10 @@ function SignalRow({ signal }: { signal: Signal }) {
         {signal.combined_volume_usd ? formatUsd(signal.combined_volume_usd, true) : "—"}
       </td>
       <td className="p-3">
-        <span className={cn("text-xs px-2 py-0.5 rounded-full", statusColors[signal.status] ?? "text-text-muted")}>
-          {signal.status}
-        </span>
+        <StatusBadge status={signal.status} filterReason={signal.filter_reason} />
       </td>
       <td className="p-3 text-center">
-        {signal.is_contested ? (
-          <span className="text-warning" title="SM wallets are also selling this token">
-            ⚠️
-          </span>
-        ) : (
-          <span className="text-text-muted">—</span>
-        )}
+        <ContestedBadge isContested={signal.is_contested === 1} contestedDetails={signal.contested_details} />
       </td>
     </tr>
   );
