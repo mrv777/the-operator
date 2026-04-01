@@ -23,6 +23,7 @@ ENV NEXT_TELEMETRY_DISABLED=1
 # Copy standalone build (includes minimal node_modules with better-sqlite3)
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
+COPY --from=builder /app/public ./public
 
 # Default config (copied to data volume on first run if missing)
 COPY config.json ./config.json.default

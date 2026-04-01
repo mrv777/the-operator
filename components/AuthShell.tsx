@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { getToken, setToken } from "@/lib/auth-client";
 
 export function AuthShell({ children }: { children: React.ReactNode }) {
@@ -55,9 +56,7 @@ function LoginForm({ onLogin }: { onLogin: (token: string) => void }) {
     <div className="flex items-center justify-center min-h-screen">
       <form onSubmit={handleSubmit} className="w-80 space-y-4">
         <div className="flex items-center gap-2 justify-center mb-6">
-          <div className="w-10 h-10 rounded-lg bg-signal flex items-center justify-center text-lg font-bold">
-            O
-          </div>
+          <Image src="/logo.png" alt="The Operator" width={40} height={40} className="rounded-lg" />
           <div>
             <h1 className="text-lg font-semibold leading-tight">The Operator</h1>
             <p className="text-xs text-text-muted">SM Convergence Agent</p>

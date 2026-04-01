@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import "./globals.css";
 import { SidebarNav } from "@/components/SidebarNav";
@@ -7,6 +8,10 @@ import { AuthShell } from "@/components/AuthShell";
 export const metadata: Metadata = {
   title: "The Operator",
   description: "Autonomous Smart Money Convergence Trading Agent",
+  icons: {
+    icon: "/favicon.ico",
+    apple: "/icon-192.png",
+  },
 };
 
 export default function RootLayout({
@@ -29,9 +34,7 @@ export default function RootLayout({
             <aside className="w-56 bg-bg-sidebar border-r border-border flex flex-col shrink-0">
               <div className="p-4 border-b border-border">
                 <Link href="/" className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-signal flex items-center justify-center text-sm font-bold">
-                    O
-                  </div>
+                  <Image src="/logo.png" alt="The Operator" width={32} height={32} className="rounded-lg" />
                   <div>
                     <h1 className="text-sm font-semibold leading-tight">The Operator</h1>
                     <p className="text-[10px] text-text-muted">SM Convergence Agent</p>
