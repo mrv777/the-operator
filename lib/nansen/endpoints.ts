@@ -35,7 +35,7 @@ export function getSmNetflow(
   chain: string = "solana",
   token?: string,
 ): Promise<NansenCliResult<SmNetflowResponse>> {
-  let cmd = `research smart-money netflow --chain ${chain}`;
+  let cmd = `research smart-money netflow --chain ${chain} --limit 500`;
   if (token) cmd += ` --token ${token}`;
   return nansenCliCall(cmd);
 }
@@ -44,7 +44,7 @@ export function getSmHoldings(
   chain: string = "solana",
   token?: string,
 ): Promise<NansenCliResult<SmHoldingsResponse>> {
-  let cmd = `research smart-money holdings --chain ${chain}`;
+  let cmd = `research smart-money holdings --chain ${chain} --limit 500`;
   if (token) cmd += ` --token ${token}`;
   return nansenCliCall(cmd);
 }
@@ -53,7 +53,7 @@ export function getSmDcas(
   chain: string = "solana",
   token?: string,
 ): Promise<NansenCliResult<SmDcasResponse>> {
-  let cmd = `research smart-money dcas --chain ${chain}`;
+  let cmd = `research smart-money dcas --chain ${chain} --limit 500`;
   if (token) cmd += ` --token ${token}`;
   return nansenCliCall(cmd);
 }
@@ -61,14 +61,14 @@ export function getSmDcas(
 export function getSmPerpTrades(
   chain: string = "solana",
 ): Promise<NansenCliResult<SmPerpTradesResponse>> {
-  return nansenCliCall(`research smart-money perp-trades --chain ${chain}`);
+  return nansenCliCall(`research smart-money perp-trades --chain ${chain} --limit 500`);
 }
 
 export function getSmHistoricalHoldings(
   chain: string = "solana",
   wallet?: string,
 ): Promise<NansenCliResult<SmHistoricalHoldingsResponse>> {
-  let cmd = `research smart-money historical-holdings --chain ${chain}`;
+  let cmd = `research smart-money historical-holdings --chain ${chain} --limit 500`;
   if (wallet) cmd += ` --wallet ${wallet}`;
   return nansenCliCall(cmd);
 }
@@ -93,7 +93,7 @@ export function getTokenDexTrades(
   token: string,
   chain: string = "solana",
 ): Promise<NansenCliResult<TokenDexTradesResponse>> {
-  return nansenCliCall(`research token dex-trades --token ${token} --chain ${chain}`);
+  return nansenCliCall(`research token dex-trades --token ${token} --chain ${chain} --limit 500`);
 }
 
 // ── Profiler Domain (2 endpoints) ───────────────────────────────────
