@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { truncateAddress, solscanUrl, formatUsd, timeAgo } from "@/lib/utils/format";
+import { truncateAddress, jupUrl, formatUsd, timeAgo } from "@/lib/utils/format";
 import { Tooltip, HelpIcon } from "@/components/Tooltip";
 
 interface Signal {
@@ -156,7 +156,7 @@ function SignalRow({ signal }: { signal: Signal }) {
         <div className="flex items-center gap-1.5">
           <span className="font-medium">{signal.token_symbol ?? "???"}</span>
           <a
-            href={solscanUrl(signal.token_address, "token")}
+            href={jupUrl(signal.token_address)}
             target="_blank"
             rel="noopener noreferrer"
             className="text-text-muted text-xs hover:text-signal transition-colors font-num"

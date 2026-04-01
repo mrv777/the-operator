@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { formatUsd, formatPnl, formatPct, truncateAddress, solscanUrl, timeAgo } from "@/lib/utils/format";
+import { formatUsd, formatPnl, formatPct, truncateAddress, solscanUrl, jupUrl, timeAgo } from "@/lib/utils/format";
 
 interface Position {
   id: number;
@@ -59,7 +59,7 @@ function PositionCard({ position: p }: { position: Position }) {
         <div className="flex items-center gap-2">
           <span className="text-lg font-semibold">{p.token_symbol ?? "???"}</span>
           <a
-            href={solscanUrl(p.token_address, "token")}
+            href={jupUrl(p.token_address)}
             target="_blank"
             rel="noopener noreferrer"
             className="text-text-muted text-xs hover:text-signal font-num"

@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { formatUsd, formatPnl, truncateAddress, solscanUrl, timeAgo } from "@/lib/utils/format";
+import { formatUsd, formatPnl, truncateAddress, solscanUrl, jupUrl, timeAgo } from "@/lib/utils/format";
 
 interface Trade {
   id: number;
@@ -65,7 +65,7 @@ export function TradesTable({ trades }: { trades: Trade[] }) {
                   <div className="flex items-center gap-1.5">
                     <span className="font-medium">{t.token_symbol ?? "???"}</span>
                     <a
-                      href={solscanUrl(t.token_address, "token")}
+                      href={jupUrl(t.token_address)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-text-muted text-xs hover:text-signal font-num"

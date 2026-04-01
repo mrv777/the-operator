@@ -42,6 +42,10 @@ export function solscanUrl(address: string, type: "tx" | "account" | "token" = "
   return `${base}/account/${address}`;
 }
 
+export function jupUrl(tokenAddress: string): string {
+  return `https://jup.ag/tokens/${tokenAddress}`;
+}
+
 export function timeAgo(dateStr: string): string {
   const now = Date.now();
   const then = new Date(dateStr).getTime();
