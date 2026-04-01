@@ -5,7 +5,9 @@ import path from "path";
 
 export const dynamic = "force-dynamic";
 
-const CONFIG_PATH = path.resolve(process.cwd(), "config.json");
+const CONFIG_PATH = process.env.CONFIG_PATH
+  ? path.resolve(process.env.CONFIG_PATH)
+  : path.resolve(process.cwd(), "config.json");
 
 export async function GET(req: NextRequest) {
   const authError = requireAuth(req);

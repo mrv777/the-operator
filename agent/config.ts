@@ -96,7 +96,7 @@ export const ConfigSchema = z.object({
 
 export type Config = z.infer<typeof ConfigSchema>;
 
-const CONFIG_PATH = path.resolve("config.json");
+const CONFIG_PATH = path.resolve(process.env.CONFIG_PATH ?? "config.json");
 
 export function loadConfig(configPath?: string): Config {
   const filePath = configPath ?? CONFIG_PATH;

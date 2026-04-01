@@ -1,0 +1,47 @@
+# ── Stage 1: Build ───────────────────────────────────────────────────
+FROM node:22-slim AS builder
+
+WORKDIR /app
+RUN corepack enable
+
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
+
+# Copy only what esbuild needs
+COPY agent/ ./agent/
+COPY lib/ ./lib/
+COPY config.json tsconfig.json ./
+
+# Bundle agent with esbuild — better-sqlite3 stays external (native addon)
+RUN pnpm exec esbuild agent/index.ts \
+  --bundle \
+  --platform=node \
+  --target=node22 \
+  --format=cjs \
+  --outfile=dist/agent.cjs \
+  --external:better-sqlite3 \
+  --alias:@=.
+
+# ── Stage 2: Runtime ─────────────────────────────────────────────────
+FROM node:22-slim
+
+WORKDIR /app
+
+# Install nansen CLI globally + better-sqlite3 locally (prebuild binary, no compile)
+RUN npm install -g nansen-cli@1.25.1 && \
+    npm init -y && npm install better-sqlite3@11
+
+# Copy compiled agent
+COPY --from=builder /app/dist/agent.cjs ./dist/
+
+# Default config (copied to data volume on first run if missing)
+COPY config.json ./config.json.default
+
+RUN mkdir -p data
+
+ENV NODE_ENV=production
+ENV DATABASE_PATH=/app/data/operator.db
+ENV CONFIG_PATH=/app/data/config.json
+
+# Copy default config to volume if missing, then start agent
+CMD ["sh", "-c", "cp -n config.json.default /app/data/config.json 2>/dev/null || true; exec node dist/agent.cjs"]
