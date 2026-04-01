@@ -29,7 +29,7 @@ docker compose up -d  # Run both containers
 - `app/api/` — Dashboard API routes (all require bearer token auth)
 
 ## Deployment
-- VPS: `89.167.91.96`, projects in `/opt/operator`
+- VPS projects live in `/opt/operator`
 - Domain: `operator.cookd.wtf` (SSL via Let's Encrypt)
 - Nginx: config lives in `/opt/cookd/nginx.conf` (shared with cookd + snitch projects)
 - Port: web on 3002 (host) -> 3000 (container)
@@ -37,7 +37,7 @@ docker compose up -d  # Run both containers
 
 ## Gotchas
 - `better-sqlite3` is a native addon — must be external in esbuild bundle and installed separately in Docker runtime stage
-- Nansen CLI `sm dex-trades` returns only 10 results by default. Use `--limit 100` for useful data.
+- All Nansen CLI list endpoints return only 10 results by default. We use `--limit 500` to get full data per call.
 - `--limit`, `--page`, `--fields` work but aren't shown in `--help`. Use `nansen schema` for full options.
 - Next.js standalone output needs `output: "standalone"` in next.config.ts
 - `CONFIG_PATH` env var controls where both agent and dashboard read/write config.json (shared Docker volume)

@@ -2,11 +2,11 @@
 
 **Autonomous Smart Money Convergence Trading Agent**
 
-Every Nansen CLI challenge winner built a dashboard that shows you signals. None of them trade. The Operator does.
+An autonomous trading agent powered by the [Nansen CLI](https://github.com/nansen-ai/nansen-cli). Detects smart money convergence, validates signals, executes trades, and tracks real on-chain P&L — fully autonomous, 24/7.
 
 ## What It Does
 
-The Operator detects when 3+ independent smart money wallets buy the same token within 24 hours — a convergence signal with 65-75% precision. It then validates the token (liquidity, market cap, holder distribution), executes the trade via Nansen Trading, and manages the position with trailing stops and take-profit tiers. All P&L is real and on-chain verifiable.
+The Operator detects when 3+ independent smart money wallets buy the same token within 24 hours — a convergence signal with 65-75% precision. It validates the token (liquidity, market cap, holder distribution), executes the trade via Nansen Trading, and manages the position with trailing stops and take-profit tiers.
 
 ```
 SCAN → DETECT → VALIDATE → EXECUTE → MANAGE → TRACK
@@ -128,10 +128,6 @@ Key parameters:
 | Positions | Open positions with live P&L, trailing stops |
 | Portfolio | Equity curve, drawdown chart, key metrics |
 | Settings | Config editor, agent pause/resume, token blocklist |
-
-## Wallet
-
-Solana wallet: `HaAp6...m68q`
 
 ## License
 
