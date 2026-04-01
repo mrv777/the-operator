@@ -1,6 +1,6 @@
 {
   "scanning": {
-    "scanIntervalMs": 600000,
+    "scanIntervalMs": 900000,
     "chains": ["solana"],
     "quietHours": {
       "enabled": false,
