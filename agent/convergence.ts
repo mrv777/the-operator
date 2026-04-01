@@ -71,10 +71,17 @@ function buildContestedDetails(sellTrades: SmTradeRow[]): WalletInfo[] {
   }));
 }
 
+// Base assets / stablecoins — never valid convergence targets
+const IGNORE_TOKENS = new Set([
+  "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", // USDC
+  "So11111111111111111111111111111111111111112",       // SOL
+  "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",   // USDT
+]);
+
 // ── Core detection ──────────────────────────────────────────────────
 
 /**
- * Group trades by token, detect convergence events (3+ distinct SM label types buying).
+ * Group trades by token, detect convergence events (3+ distinct wallets buying).
  * Handles dedup: updates existing signal within 24h window.
  * Handles contested flagging: SM sells flagged but don't filter.
  */
@@ -101,6 +108,8 @@ export function detectConvergenceEvents(
     let bestNearMiss: { token: string; wallets: number; volume: number } | null = null;
 
     for (const [tokenAddress, trades] of byToken) {
+      if (IGNORE_TOKENS.has(tokenAddress)) continue;
+
       const buyTrades = trades.filter((t) => t.direction === "buy");
       const sellTrades = trades.filter((t) => t.direction === "sell");
 

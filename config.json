@@ -13,7 +13,7 @@
     "windowHours": 24,
     "minWallets": 3,
     "minScore": 70,
-    "minVolumeUsd": 10000
+    "minVolumeUsd": 1000
   },
   "validation": {
     "minLiquidityUsd": 10000,
