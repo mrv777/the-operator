@@ -92,7 +92,7 @@ function execNansenCli(command: string): string {
 }
 
 function parseCliOutput<T>(raw: string): T {
-  // Nansen CLI outputs JSON — parse it directly
+  // Nansen CLI outputs JSON for research commands — parse it directly
   // If the output contains non-JSON prefix (e.g. progress lines), extract the JSON part
   const jsonStart = raw.indexOf("{");
   const jsonArrayStart = raw.indexOf("[");
@@ -126,6 +126,116 @@ function parseCliOutput<T>(raw: string): T {
   }
 
   return parsed as T;
+}
+
+// ── Trade CLI text parser ───────────────────────────────────────────
+// Trade commands output human-readable text, not JSON.
+
+export interface ParsedTradeQuote {
+  quoteId: string;
+  inputAmount: number;
+  outputAmount: number;
+  inUsd: number;
+  outUsd: number;
+  priceImpactPct: number;
+  tradingFeeUsd: number;
+  networkFeeUsd: number;
+  source: string;
+}
+
+export interface ParsedTradeExecution {
+  txHash: string;
+  status: "success" | "failed";
+  message: string;
+}
+
+function parseNumber(s: string): number {
+  return parseFloat(s.replace(/[$,]/g, ""));
+}
+
+export function parseTradeQuoteOutput(raw: string): ParsedTradeQuote {
+  // Extract Quote ID — required, fail hard if missing
+  const quoteIdMatch = raw.match(/Quote ID:\s*(\S+)/);
+  if (!quoteIdMatch) {
+    throw new Error(
+      `Nansen CLI output format may have changed — could not parse Quote ID.\n` +
+      `Raw output (first 500 chars):\n${raw.substring(0, 500)}\n\n` +
+      `Check for a nansen-cli update: nansen --version (current: see changelog)`,
+    );
+  }
+
+  // Parse the first quote block (best quote)
+  const sourceMatch = raw.match(/Quote #1 \((\w+)\)/);
+  const inputMatch = raw.match(/Input:\s+(\d+)\s*→/);
+  const outputMatch = raw.match(/Output:\s+(\d+)\s*→/);
+  const inUsdMatch = raw.match(/In USD:\s+\$([0-9.e+-]+)/);
+  const outUsdMatch = raw.match(/Out USD:\s+\$([0-9.e+-]+)/);
+  const impactMatch = raw.match(/Price [Ii]mpact[^:]*:\s+([0-9.e+-]+)%/);
+  const tradingFeeMatch = raw.match(/Trading Fee:\s+\$([0-9.e+-]+)/);
+  const networkFeeMatch = raw.match(/Network Fee:\s+\$([0-9.e+-]+)/);
+
+  // Price impact may show as warning line instead
+  const impactWarnMatch = raw.match(/Price impact is ([0-9.e+-]+)%/);
+
+  // Critical fields — refuse to trade if we can't parse USD values
+  const missingFields: string[] = [];
+  if (!inUsdMatch) missingFields.push("In USD");
+  if (!outUsdMatch) missingFields.push("Out USD");
+  if (!outputMatch) missingFields.push("Output amount");
+
+  if (missingFields.length > 0) {
+    throw new Error(
+      `Nansen CLI output format may have changed — could not parse: ${missingFields.join(", ")}.\n` +
+      `Raw output (first 500 chars):\n${raw.substring(0, 500)}\n\n` +
+      `This is a safety stop to prevent trading with bad data.\n` +
+      `Check for a nansen-cli update or report at https://github.com/nansen-ai/nansen-cli/issues`,
+    );
+  }
+
+  return {
+    quoteId: quoteIdMatch[1],
+    inputAmount: inputMatch ? parseInt(inputMatch[1], 10) : 0,
+    outputAmount: parseInt(outputMatch![1], 10),
+    inUsd: parseNumber(inUsdMatch![1]),
+    outUsd: parseNumber(outUsdMatch![1]),
+    priceImpactPct: impactMatch
+      ? parseNumber(impactMatch[1])
+      : impactWarnMatch
+        ? parseNumber(impactWarnMatch[1])
+        : 0,
+    tradingFeeUsd: tradingFeeMatch ? parseNumber(tradingFeeMatch[1]) : 0,
+    networkFeeUsd: networkFeeMatch ? parseNumber(networkFeeMatch[1]) : 0,
+    source: sourceMatch?.[1] ?? "unknown",
+  };
+}
+
+export function parseTradeExecuteOutput(raw: string): ParsedTradeExecution {
+  // Look for tx hash (Solana base58 signatures are 87-88 chars)
+  const txMatch = raw.match(/(?:tx_hash|signature|Transaction|tx)[:\s]+([A-HJ-NP-Za-km-z1-9]{43,88})/i)
+    ?? raw.match(/([A-HJ-NP-Za-km-z1-9]{80,88})/); // fallback: grab long base58 string
+
+  const isFailed = /fail|error|rejected|reverted/i.test(raw);
+
+  // If we can't find a tx hash and it doesn't look like a failure, the format may have changed
+  if (!txMatch && !isFailed) {
+    throw new Error(
+      `Nansen CLI output format may have changed — could not parse tx hash from execute output.\n` +
+      `Raw output (first 500 chars):\n${raw.substring(0, 500)}\n\n` +
+      `This is a safety stop to prevent untracked trades.\n` +
+      `Check for a nansen-cli update or report at https://github.com/nansen-ai/nansen-cli/issues`,
+    );
+  }
+
+  return {
+    txHash: txMatch?.[1] ?? "",
+    status: isFailed ? "failed" : "success",
+    message: raw.trim(),
+  };
+}
+
+// Raw CLI call that returns unparsed text (for trade commands)
+export function nansenCliCallRaw(command: string): string {
+  return execNansenCli(command);
 }
 
 export async function nansenCliCall<T>(

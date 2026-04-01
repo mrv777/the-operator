@@ -1,4 +1,12 @@
-import { nansenCliCall, invalidateCacheForToken } from "./client";
+import {
+  nansenCliCall,
+  nansenCliCallRaw,
+  invalidateCacheForToken,
+  parseTradeQuoteOutput,
+  parseTradeExecuteOutput,
+  type ParsedTradeQuote,
+  type ParsedTradeExecution,
+} from "./client";
 import type {
   SmDexTradesResponse,
   SmNetflowResponse,
@@ -11,8 +19,6 @@ import type {
   TokenDexTradesResponse,
   ProfilerPnlSummaryResponse,
   ProfilerTransactionsResponse,
-  TradeQuoteResponse,
-  TradeExecuteResponse,
   NansenCliResult,
 } from "./types";
 
@@ -106,35 +112,64 @@ export function getProfilerTransactions(
 }
 
 // ── Trading Domain (2 endpoints) ────────────────────────────────────
+// Trade commands output formatted text, not JSON.
+// We use nansenCliCallRaw + text parsers instead of nansenCliCall.
 
 export function getTradeQuote(opts: {
   chain?: string;
   from: string;
   to: string;
   amount: string;
+  amountUnit?: "usd" | "token" | "base";
   slippage?: number;
-}): Promise<NansenCliResult<TradeQuoteResponse>> {
+}): NansenCliResult<ParsedTradeQuote> {
   const chain = opts.chain ?? "solana";
   const slippage = opts.slippage ?? 0.01;
-  return nansenCliCall(
-    `trade quote --chain ${chain} --from ${opts.from} --to ${opts.to} --amount ${opts.amount} --slippage ${slippage}`,
-    { skipCache: true },
-  );
+  const unitFlag = opts.amountUnit ? ` --amount-unit ${opts.amountUnit}` : "";
+  const cmd = `trade quote --chain ${chain} --from ${opts.from} --to ${opts.to} --amount ${opts.amount}${unitFlag} --slippage ${slippage}`;
+
+  try {
+    const raw = nansenCliCallRaw(cmd);
+    const parsed = parseTradeQuoteOutput(raw);
+    return { success: true, data: parsed, error: null, cached: false, command: cmd };
+  } catch (err) {
+    return {
+      success: false,
+      data: null,
+      error: err instanceof Error ? err.message : String(err),
+      cached: false,
+      command: cmd,
+    };
+  }
 }
 
-export async function executeTrade(
+export function executeTradeCmd(
   quoteId: string,
   tokenAddress?: string,
-): Promise<NansenCliResult<TradeExecuteResponse>> {
-  const result = await nansenCliCall<TradeExecuteResponse>(
-    `trade execute --quote ${quoteId}`,
-    { skipCache: true },
-  );
+): NansenCliResult<ParsedTradeExecution> {
+  const cmd = `trade execute --quote ${quoteId}`;
 
-  // Invalidate cache for this token after trade execution
-  if (tokenAddress) {
-    invalidateCacheForToken(tokenAddress);
+  try {
+    const raw = nansenCliCallRaw(cmd);
+    const parsed = parseTradeExecuteOutput(raw);
+
+    // Invalidate cache for this token after trade execution
+    if (tokenAddress) {
+      invalidateCacheForToken(tokenAddress);
+    }
+
+    return { success: true, data: parsed, error: null, cached: false, command: cmd };
+  } catch (err) {
+    // NEVER retry execute — Section 9.3
+    if (tokenAddress) {
+      invalidateCacheForToken(tokenAddress);
+    }
+    return {
+      success: false,
+      data: null,
+      error: err instanceof Error ? err.message : String(err),
+      cached: false,
+      command: cmd,
+    };
   }
-
-  return result;
 }

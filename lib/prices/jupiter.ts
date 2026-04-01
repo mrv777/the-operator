@@ -74,3 +74,55 @@ export async function getJupiterPrice(mintAddress: string): Promise<number | nul
   const prices = await getJupiterPrices([mintAddress]);
   return prices[mintAddress] ?? null;
 }
+
+/**
+ * Fetch decimals for one or more Solana token mint addresses.
+ * Uses the same Jupiter Price API response which includes decimals.
+ */
+export async function getJupiterDecimals(
+  mintAddresses: string[],
+): Promise<Record<string, number>> {
+  if (mintAddresses.length === 0) return {};
+
+  const apiKey = process.env.JUPITER_API_KEY;
+  const baseUrl = apiKey ? PAID_API : LITE_API;
+  const ids = mintAddresses.join(",");
+  const url = `${baseUrl}?ids=${ids}`;
+
+  const headers: Record<string, string> = {};
+  if (apiKey) headers["x-api-key"] = apiKey;
+
+  const res = await fetch(url, { headers });
+  if (!res.ok) {
+    throw new Error(`Jupiter Price API error: ${res.status} ${res.statusText}`);
+  }
+
+  const json = (await res.json()) as JupiterRawResponse;
+  const raw = json as Record<string, unknown>;
+  const entries: Record<string, JupiterPriceData> =
+    raw.data && typeof raw.data === "object" && !Array.isArray(raw.data)
+      ? (raw.data as Record<string, JupiterPriceData>)
+      : (json as Record<string, JupiterPriceData>);
+
+  const decimals: Record<string, number> = {};
+  for (const [mint, entry] of Object.entries(entries)) {
+    if (entry?.decimals != null) {
+      decimals[mint] = entry.decimals;
+    }
+  }
+  return decimals;
+}
+
+/**
+ * Convert base units (lamports, etc.) to token units using decimals.
+ */
+export function baseToTokenUnits(baseUnits: number, decimals: number): number {
+  return baseUnits / Math.pow(10, decimals);
+}
+
+/**
+ * Convert token units to base units (lamports, etc.) using decimals.
+ */
+export function tokenToBaseUnits(tokenUnits: number, decimals: number): number {
+  return Math.round(tokenUnits * Math.pow(10, decimals));
+}

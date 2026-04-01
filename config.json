@@ -27,7 +27,7 @@
     "maxTotalExposurePct": 50,
     "maxSlippage": 0.01,
     "maxPriceImpactPct": 2,
-    "minTradeUsd": 10
+    "minTradeUsd": 1
   },
   "positionManagement": {
     "checkIntervalMs": 300000,

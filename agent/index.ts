@@ -1,5 +1,5 @@
 import { getDb } from "@/lib/db/schema";
-import { getAgentState, setAgentState } from "@/lib/db/queries";
+import { getAgentState, setAgentState, updateSignal } from "@/lib/db/queries";
 import { configureClient } from "@/lib/nansen/client";
 import { initLogger, logger } from "@/lib/utils/logger";
 import { loadConfig } from "./config";
@@ -9,6 +9,9 @@ import {
   persistConvergenceEvent,
 } from "./convergence";
 import { validateSignal } from "./validator";
+import { executeSignalTrade } from "./executor";
+import { checkAllPositions } from "./position-manager";
+import { shouldTakeSnapshot, writePortfolioSnapshot } from "./portfolio";
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -71,12 +74,12 @@ async function runCycle(
       continue; // validator already updates signal status to FILTERED
     }
 
-    // Phase 2: NO EXECUTION — just log what we would do
+    // ── 4. EXECUTE — trade if score meets threshold ────────────────
     const enrichedScore = validation.enrichment?.enrichedScore ?? signal.convergence_score;
 
     if (enrichedScore >= config.convergence.minScore) {
       logger.trade(
-        `[DRY RUN] Would execute trade for ${signal.token_symbol ?? signal.token_address} (score: ${enrichedScore})`,
+        `Signal #${signal.id} qualified for execution: ${signal.token_symbol ?? signal.token_address} (score: ${enrichedScore})`,
         {
           signalId: signal.id,
           tokenAddress: signal.token_address,
@@ -86,12 +89,42 @@ async function runCycle(
           isContested: signal.is_contested === 1,
         },
       );
+
+      const result = await executeSignalTrade(db, signal, config);
+
+      if (result.success) {
+        updateSignal(db, signal.id, { status: "TRADED" });
+      } else {
+        logger.trade(`Execution skipped/failed for signal #${signal.id}: ${result.reason}`, {
+          signalId: signal.id,
+        });
+      }
     } else {
       logger.signal(
         `Signal #${signal.id} score ${enrichedScore} < ${config.convergence.minScore}, added to watchlist`,
         { tokenAddress: signal.token_address },
       );
     }
+  }
+
+  // ── 5. MANAGE — check all open positions for exit conditions ────
+  try {
+    await checkAllPositions(db, config);
+  } catch (err) {
+    logger.error("Position management check failed", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+
+  // ── 6. SNAPSHOT — write portfolio snapshot if interval elapsed ──
+  try {
+    if (shouldTakeSnapshot(db, config)) {
+      await writePortfolioSnapshot(db, config);
+    }
+  } catch (err) {
+    logger.error("Portfolio snapshot failed", {
+      error: err instanceof Error ? err.message : String(err),
+    });
   }
 
   // Update cycle stats
