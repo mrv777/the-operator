@@ -19,7 +19,7 @@ interface RawTokenInfoPayload {
     token_details: {
       token_deployment_date: string | null;
       market_cap_usd: number | null;
-      fdv_usd: number | null;
+      fdv_usd?: number | null;
       circulating_supply: number | null;
       total_supply: number | null;
     };
@@ -109,10 +109,15 @@ export async function validateSignal(
   const details = raw.data?.token_details;
   const metrics = raw.data?.spot_metrics;
 
+  // Use FDV as fallback when market cap is 0/null (common for pump.fun tokens)
+  const mcap = details?.market_cap_usd && details.market_cap_usd > 0
+    ? details.market_cap_usd
+    : details?.fdv_usd ?? null;
+
   const tokenInfo = {
     liquidity_usd: metrics?.liquidity_usd ?? null,
     volume_24h_usd: metrics?.volume_total_usd ?? null,
-    market_cap_usd: details?.market_cap_usd ?? null,
+    market_cap_usd: mcap,
     top_10_holder_pct: null as number | null, // Not directly available from this endpoint
     created_at: details?.token_deployment_date ?? null,
     total_holders: metrics?.total_holders ?? null,

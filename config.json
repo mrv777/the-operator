@@ -16,11 +16,11 @@
     "minVolumeUsd": 10000
   },
   "validation": {
-    "minLiquidityUsd": 100000,
-    "minVolume24hUsd": 50000,
-    "minMcapUsd": 500000,
+    "minLiquidityUsd": 10000,
+    "minVolume24hUsd": 10000,
+    "minMcapUsd": 50000,
     "maxTop10HolderPct": 50,
-    "minTokenAgeDays": 3
+    "minTokenAgeDays": 1
   },
   "execution": {
     "maxPositionPct": 10,
