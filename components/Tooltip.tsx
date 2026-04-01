@@ -1,40 +1,69 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
+import { createPortal } from "react-dom";
 
 interface TooltipProps {
   content: React.ReactNode;
   children: React.ReactNode;
-  /** Max width in px */
   maxWidth?: number;
 }
 
-export function Tooltip({ content, children, maxWidth = 240 }: TooltipProps) {
+interface Position {
+  top: number;
+  left: number;
+  above: boolean;
+}
+
+export function Tooltip({ content, children, maxWidth = 260 }: TooltipProps) {
   const [open, setOpen] = useState(false);
-  const [above, setAbove] = useState(true);
+  const [pos, setPos] = useState<Position | null>(null);
   const triggerRef = useRef<HTMLSpanElement>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
+  const calcPosition = useCallback(() => {
+    if (!triggerRef.current) return;
+    const rect = triggerRef.current.getBoundingClientRect();
+    const above = rect.top > 120;
+
+    let left = rect.left + rect.width / 2;
+    // Clamp so tooltip doesn't overflow viewport edges
+    const halfWidth = maxWidth / 2;
+    left = Math.max(halfWidth + 8, Math.min(left, window.innerWidth - halfWidth - 8));
+
+    setPos({
+      top: above ? rect.top - 8 : rect.bottom + 8,
+      left,
+      above,
+    });
+  }, [maxWidth]);
+
   const show = useCallback(() => {
     clearTimeout(timeoutRef.current);
-    timeoutRef.current = setTimeout(() => setOpen(true), 200);
-  }, []);
+    timeoutRef.current = setTimeout(() => {
+      calcPosition();
+      setOpen(true);
+    }, 200);
+  }, [calcPosition]);
 
   const hide = useCallback(() => {
     clearTimeout(timeoutRef.current);
     timeoutRef.current = setTimeout(() => setOpen(false), 100);
   }, []);
 
-  // Flip tooltip below if too close to top of viewport
+  // Reposition on scroll/resize while open
   useEffect(() => {
-    if (open && triggerRef.current) {
-      const rect = triggerRef.current.getBoundingClientRect();
-      setAbove(rect.top > 80);
-    }
-  }, [open]);
+    if (!open) return;
+    const reposition = () => calcPosition();
+    window.addEventListener("scroll", reposition, true);
+    window.addEventListener("resize", reposition);
+    return () => {
+      window.removeEventListener("scroll", reposition, true);
+      window.removeEventListener("resize", reposition);
+    };
+  }, [open, calcPosition]);
 
-  // Cleanup timeout on unmount
   useEffect(() => () => clearTimeout(timeoutRef.current), []);
 
   return (
@@ -46,33 +75,32 @@ export function Tooltip({ content, children, maxWidth = 240 }: TooltipProps) {
       onFocus={show}
       onBlur={hide}
       tabIndex={0}
-      role="button"
-      aria-describedby={open ? "tooltip" : undefined}
     >
       {children}
-      {open && (
+      {open && pos && createPortal(
         <div
           ref={tooltipRef}
           role="tooltip"
-          id="tooltip"
-          style={{ maxWidth }}
-          className={`absolute z-50 px-3 py-2 text-xs leading-relaxed text-text-primary bg-bg-card border border-border-light rounded-lg shadow-lg whitespace-normal pointer-events-none
-            left-1/2 -translate-x-1/2
-            ${above ? "bottom-full mb-2" : "top-full mt-2"}`}
+          style={{
+            position: "fixed",
+            top: pos.above ? pos.top : pos.top,
+            left: pos.left,
+            transform: pos.above
+              ? "translate(-50%, -100%)"
+              : "translate(-50%, 0)",
+            maxWidth,
+            zIndex: 9999,
+          }}
+          className="px-3 py-2 text-xs leading-relaxed text-text-primary bg-bg-card border border-border-light rounded-lg shadow-lg shadow-black/40 whitespace-normal pointer-events-none"
         >
           {content}
-          {/* Arrow */}
-          <span
-            className={`absolute left-1/2 -translate-x-1/2 w-2 h-2 bg-bg-card border-border-light rotate-45
-              ${above ? "bottom-0 translate-y-1/2 border-r border-b" : "top-0 -translate-y-1/2 border-l border-t"}`}
-          />
-        </div>
+        </div>,
+        document.body,
       )}
     </span>
   );
 }
 
-/** Small (?) icon for inline help */
 export function HelpIcon() {
   return (
     <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-text-muted/40 text-text-muted text-[9px] leading-none ml-1 cursor-help">
