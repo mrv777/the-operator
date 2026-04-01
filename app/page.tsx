@@ -6,6 +6,7 @@ import { StatsRow } from "@/components/StatsRow";
 import { PipelineViz } from "@/components/PipelineViz";
 import { ActivityFeed } from "@/components/ActivityFeed";
 import { formatUsd, formatPnl, formatPct } from "@/lib/utils/format";
+import { authFetch } from "@/lib/auth-client";
 
 interface StatusData {
   status: string;
@@ -34,11 +35,11 @@ export default function OverviewPage() {
     async function load() {
       try {
         const [statusRes, signalsRes, tradesRes, positionsRes, portfolioRes] = await Promise.all([
-          fetch("/api/agent/status"),
-          fetch("/api/signals"),
-          fetch("/api/trades"),
-          fetch("/api/positions"),
-          fetch("/api/portfolio"),
+          authFetch("/api/agent/status"),
+          authFetch("/api/signals"),
+          authFetch("/api/trades"),
+          authFetch("/api/positions"),
+          authFetch("/api/portfolio"),
         ]);
 
         if (statusRes.ok) {

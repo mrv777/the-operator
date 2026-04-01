@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { timeAgo } from "@/lib/utils/format";
+import { getToken } from "@/lib/auth-client";
 
 interface LogEvent {
   id: number;
@@ -42,7 +43,7 @@ export function ActivityFeed() {
     let es: EventSource | null = null;
 
     function connect() {
-      const token = ""; // SSE with query param auth
+      const token = getToken();
       es = new EventSource(`/api/agent/events?cursor=${cursor}&token=${token}`);
       es.onmessage = (e) => {
         try {

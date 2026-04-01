@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { EquityCurve, DrawdownChart } from "@/components/EquityCurve";
 import { formatUsd, formatPnl, formatPct, formatNumber } from "@/lib/utils/format";
 import { cn } from "@/lib/utils";
+import { authFetch } from "@/lib/auth-client";
 
 interface Snapshot {
   snapshot_at: string;
@@ -33,7 +34,7 @@ export default function PortfolioPage() {
   useEffect(() => {
     async function load() {
       try {
-        const res = await fetch("/api/portfolio");
+        const res = await authFetch("/api/portfolio");
         if (res.ok) {
           const data = await res.json();
           setSnapshots(data.snapshots);

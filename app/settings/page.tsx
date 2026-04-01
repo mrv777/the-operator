@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { cn } from "@/lib/utils";
+import { authFetch } from "@/lib/auth-client";
 
 export default function SettingsPage() {
   const [config, setConfig] = useState<Record<string, unknown> | null>(null);
@@ -15,8 +16,8 @@ export default function SettingsPage() {
     async function load() {
       try {
         const [settingsRes, statusRes] = await Promise.all([
-          fetch("/api/settings"),
-          fetch("/api/agent/status"),
+          authFetch("/api/settings"),
+          authFetch("/api/agent/status"),
         ]);
         if (settingsRes.ok) {
           const data = await settingsRes.json();
@@ -48,7 +49,7 @@ export default function SettingsPage() {
     setSaveStatus("idle");
     try {
       const parsed = JSON.parse(configText);
-      const res = await fetch("/api/settings", {
+      const res = await authFetch("/api/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ config: parsed }),
@@ -69,7 +70,7 @@ export default function SettingsPage() {
 
   async function handleToggle() {
     try {
-      const res = await fetch("/api/agent/toggle", { method: "POST" });
+      const res = await authFetch("/api/agent/toggle", { method: "POST" });
       if (res.ok) {
         const data = await res.json();
         setPaused(data.paused);

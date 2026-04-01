@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { PositionCards } from "@/components/PositionCard";
 import { formatUsd, formatPnl } from "@/lib/utils/format";
+import { authFetch } from "@/lib/auth-client";
 
 interface Position {
   id: number;
@@ -34,8 +35,8 @@ export default function PositionsPage() {
     async function load() {
       try {
         const [openRes, allRes] = await Promise.all([
-          fetch("/api/positions"),
-          fetch("/api/positions?all=true"),
+          authFetch("/api/positions"),
+          authFetch("/api/positions?all=true"),
         ]);
         if (openRes.ok) setOpen((await openRes.json()).positions);
         if (allRes.ok) {

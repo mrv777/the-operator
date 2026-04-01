@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { formatUptime, timeAgo } from "@/lib/utils/format";
 import { cn } from "@/lib/utils";
+import { authFetch } from "@/lib/auth-client";
 
 interface AgentStatusData {
   status: "RUNNING" | "PAUSED" | "STOPPED";
@@ -17,7 +18,7 @@ export function AgentStatus() {
   useEffect(() => {
     async function fetch_() {
       try {
-        const res = await fetch("/api/agent/status");
+        const res = await authFetch("/api/agent/status");
         if (res.ok) setData(await res.json());
       } catch { /* retry next tick */ }
     }

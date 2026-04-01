@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { TradesTable } from "@/components/TradeRow";
 import { formatUsd, formatPnl } from "@/lib/utils/format";
+import { authFetch } from "@/lib/auth-client";
 
 interface Trade {
   id: number;
@@ -29,7 +30,7 @@ export default function TradesPage() {
   useEffect(() => {
     async function load() {
       try {
-        const res = await fetch("/api/trades");
+        const res = await authFetch("/api/trades");
         if (res.ok) {
           const data = await res.json();
           setTrades(data.trades);

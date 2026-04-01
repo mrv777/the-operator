@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { SignalsTable } from "@/components/SignalCard";
 import { ConvergenceDetail } from "@/components/ConvergenceDetail";
+import { authFetch } from "@/lib/auth-client";
 
 interface Signal {
   id: number;
@@ -32,7 +33,7 @@ export default function SignalsPage() {
     async function load() {
       try {
         const url = filter === "ALL" ? "/api/signals" : `/api/signals?status=${filter}`;
-        const res = await fetch(url);
+        const res = await authFetch(url);
         if (res.ok) {
           const data = await res.json();
           setSignals(data.signals);
