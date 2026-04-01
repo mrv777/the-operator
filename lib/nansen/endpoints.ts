@@ -26,7 +26,7 @@ import type {
 
 export function getSmDexTrades(
   chain: string = "solana",
-  limit: number = 100,
+  limit: number = 500,
 ): Promise<NansenCliResult<SmDexTradesResponse>> {
   return nansenCliCall(`research smart-money dex-trades --chain ${chain} --limit ${limit}`);
 }
