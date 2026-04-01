@@ -1,0 +1,68 @@
+{
+  "scanning": {
+    "scanIntervalMs": 600000,
+    "chains": ["solana"],
+    "quietHours": {
+      "enabled": false,
+      "startUtc": 2,
+      "endUtc": 8,
+      "reducedIntervalMs": 1800000
+    }
+  },
+  "convergence": {
+    "windowHours": 24,
+    "minWallets": 3,
+    "minScore": 70,
+    "minVolumeUsd": 10000
+  },
+  "validation": {
+    "minLiquidityUsd": 100000,
+    "minVolume24hUsd": 50000,
+    "minMcapUsd": 500000,
+    "maxTop10HolderPct": 50,
+    "minTokenAgeDays": 3
+  },
+  "execution": {
+    "maxPositionPct": 10,
+    "maxTotalExposurePct": 50,
+    "maxSlippage": 0.01,
+    "maxPriceImpactPct": 2,
+    "minTradeUsd": 10
+  },
+  "positionManagement": {
+    "checkIntervalMs": 300000,
+    "trailingStop": {
+      "microCap": { "maxMcap": 5000000, "stopPct": 25 },
+      "smallCap": { "maxMcap": 50000000, "stopPct": 20 },
+      "midCap": { "stopPct": 15 }
+    },
+    "emergencyStopPct": 25,
+    "takeProfitTiers": [
+      { "multiplier": 2, "sellPct": 25 },
+      { "multiplier": 3, "sellPct": 25 }
+    ],
+    "timeExitDays": 14,
+    "timeExitMinChangePct": 5
+  },
+  "positionSizing": {
+    "score70_79Pct": 3,
+    "score80_89Pct": 5,
+    "score90_100Pct": 8
+  },
+  "portfolio": {
+    "snapshotIntervalMs": 900000
+  },
+  "cache": {
+    "defaultTtlMs": 300000,
+    "perEndpoint": {
+      "token-info": 300000,
+      "sm-dex-trades": 300000,
+      "sm-netflow": 600000
+    }
+  },
+  "retry": {
+    "maxRetries": 1,
+    "retryDelayMs": 5000
+  },
+  "blocklist": []
+}
