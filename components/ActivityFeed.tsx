@@ -70,11 +70,15 @@ export function ActivityFeed() {
     }
   }, [events]);
 
-  // Find the most recent error in the last 30 minutes
-  const recentError = events
-    .filter((ev) => ev.event_type === "ERROR")
-    .filter((ev) => Date.now() - new Date(ev.created_at).getTime() < 30 * 60 * 1000)
-    .at(-1);
+  // Show error banner only if the last error is more recent than the last successful scan
+  const lastError = [...events].reverse().find((ev) => ev.event_type === "ERROR");
+  const lastScanSuccess = [...events].reverse().find(
+    (ev) => ev.event_type === "SCAN" && !ev.message.toLowerCase().includes("failed"),
+  );
+  const recentError =
+    lastError && (!lastScanSuccess || lastError.id > lastScanSuccess.id)
+      ? lastError
+      : null;
 
   return (
     <div className="bg-bg-card rounded-xl border border-border p-4">
