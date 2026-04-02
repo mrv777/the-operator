@@ -11,7 +11,7 @@
   },
   "convergence": {
     "windowHours": 24,
-    "minWallets": 3,
+    "minWallets": 2,
     "minScore": 55,
     "minVolumeUsd": 1000,
     "minValidationScore": 40
