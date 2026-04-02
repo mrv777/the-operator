@@ -20,6 +20,7 @@ const ConvergenceSchema = z.object({
   minWallets: z.number().int().min(2),
   minScore: z.number().min(0).max(100),
   minVolumeUsd: z.number().nonnegative(),
+  minValidationScore: z.number().min(0).max(100).default(40),
 });
 
 const ValidationSchema = z.object({
@@ -28,6 +29,7 @@ const ValidationSchema = z.object({
   minMcapUsd: z.number().nonnegative(),
   maxTop10HolderPct: z.number().min(0).max(100),
   minTokenAgeDays: z.number().nonnegative(),
+  minNetflowUsd: z.number().default(-5000),
 });
 
 const ExecutionSchema = z.object({

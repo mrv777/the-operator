@@ -12,15 +12,17 @@
   "convergence": {
     "windowHours": 24,
     "minWallets": 3,
-    "minScore": 70,
-    "minVolumeUsd": 1000
+    "minScore": 55,
+    "minVolumeUsd": 1000,
+    "minValidationScore": 40
   },
   "validation": {
     "minLiquidityUsd": 10000,
     "minVolume24hUsd": 10000,
     "minMcapUsd": 50000,
     "maxTop10HolderPct": 50,
-    "minTokenAgeDays": 1
+    "minTokenAgeDays": 1,
+    "minNetflowUsd": -5000
   },
   "execution": {
     "maxPositionPct": 10,

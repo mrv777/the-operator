@@ -76,6 +76,40 @@ export function getRecentSmTrades(
     .all(chain, cutoff) as SmTradeRow[];
 }
 
+// ── token netflow (local, computed from sm_trades) ──────────────────
+
+export interface TokenNetflow {
+  buyVolumeUsd: number;
+  sellVolumeUsd: number;
+  netFlowUsd: number;
+}
+
+export function getTokenNetflow(
+  db: Database.Database,
+  tokenAddress: string,
+  chain: string,
+  windowHours: number = 24,
+): TokenNetflow {
+  const cutoff = new Date(Date.now() - windowHours * 60 * 60 * 1000).toISOString();
+  const rows = db
+    .prepare(
+      `SELECT direction, COALESCE(SUM(amount_usd), 0) as total
+       FROM sm_trades
+       WHERE token_address = ? AND chain = ? AND traded_at >= ?
+       GROUP BY direction`,
+    )
+    .all(tokenAddress, chain, cutoff) as { direction: string; total: number }[];
+
+  let buyVolumeUsd = 0;
+  let sellVolumeUsd = 0;
+  for (const row of rows) {
+    if (row.direction === "buy") buyVolumeUsd = row.total;
+    else if (row.direction === "sell") sellVolumeUsd = row.total;
+  }
+
+  return { buyVolumeUsd, sellVolumeUsd, netFlowUsd: buyVolumeUsd - sellVolumeUsd };
+}
+
 // ── signals ──────────────────────────────────────────────────────────
 
 export interface SignalRow {

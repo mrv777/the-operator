@@ -50,10 +50,10 @@ async function runCycle(
     // Persist (insert or update) the signal first
     const signal = persistConvergenceEvent(db, event);
 
-    // Skip validation if score < 50
-    if (signal.convergence_score < 50) {
+    // Skip validation if score below minimum validation threshold
+    if (signal.convergence_score < config.convergence.minValidationScore) {
       logger.signal(
-        `Signal #${signal.id} score ${signal.convergence_score} < 50, skipping validation`,
+        `Signal #${signal.id} score ${signal.convergence_score} < ${config.convergence.minValidationScore}, skipping validation`,
         { tokenAddress: signal.token_address },
       );
       continue;

@@ -1,8 +1,9 @@
 import type Database from "better-sqlite3";
 import type { Config } from "./config";
 import type { SignalRow } from "@/lib/db/queries";
-import { updateSignal } from "@/lib/db/queries";
-import { getTokenInfo, getSmNetflow, getSmDcas } from "@/lib/nansen/endpoints";
+import { updateSignal, getTokenNetflow } from "@/lib/db/queries";
+import { getDexScreenerToken } from "@/lib/prices/dexscreener";
+import { getTokenInfo, getSmDcas } from "@/lib/nansen/endpoints";
 import {
   applyEnrichmentBonuses,
   type EnrichmentResult,
@@ -33,17 +34,6 @@ interface RawTokenInfoPayload {
   };
 }
 
-interface RawNetflowEntry {
-  token_address?: string;
-  net_flow_usd?: number;
-  [key: string]: unknown;
-}
-
-interface RawNetflowPayload {
-  data: RawNetflowEntry[];
-  pagination?: unknown;
-}
-
 interface RawDcaEntry {
   wallet_address?: string;
   token_address?: string;
@@ -71,6 +61,68 @@ export interface ValidationResult {
   } | null;
 }
 
+// ── Token info fetching (DexScreener primary, Nansen fallback) ──────
+
+interface TokenInfoData {
+  liquidity_usd: number | null;
+  volume_24h_usd: number | null;
+  market_cap_usd: number | null;
+  top_10_holder_pct: number | null;
+  created_at: string | null;
+  total_holders: number | null;
+}
+
+async function fetchTokenData(
+  tokenAddress: string,
+  chain: string,
+): Promise<{ data: TokenInfoData; source: string } | null> {
+  // Try DexScreener first (free)
+  const ds = await getDexScreenerToken(tokenAddress);
+  if (ds.success) {
+    logger.validate(`Token data from DexScreener`, { tokenAddress });
+    return {
+      source: "dexscreener",
+      data: {
+        liquidity_usd: ds.data.liquidityUsd,
+        volume_24h_usd: ds.data.volume24hUsd,
+        market_cap_usd: ds.data.marketCapUsd && ds.data.marketCapUsd > 0
+          ? ds.data.marketCapUsd
+          : ds.data.fdvUsd ?? null,
+        top_10_holder_pct: null,
+        created_at: ds.data.pairCreatedAt,
+        total_holders: null,
+      },
+    };
+  }
+
+  logger.warn(`DexScreener failed for ${tokenAddress}: ${ds.error}, falling back to Nansen`);
+
+  // Fallback to Nansen
+  const nansenResult = await getTokenInfo(tokenAddress, chain);
+  if (!nansenResult.success || !nansenResult.data) {
+    return null;
+  }
+
+  const raw = nansenResult.data as unknown as RawTokenInfoPayload;
+  const details = raw.data?.token_details;
+  const metrics = raw.data?.spot_metrics;
+  const mcap = details?.market_cap_usd && details.market_cap_usd > 0
+    ? details.market_cap_usd
+    : details?.fdv_usd ?? null;
+
+  return {
+    source: "nansen",
+    data: {
+      liquidity_usd: metrics?.liquidity_usd ?? null,
+      volume_24h_usd: metrics?.volume_total_usd ?? null,
+      market_cap_usd: mcap,
+      top_10_holder_pct: null,
+      created_at: details?.token_deployment_date ?? null,
+      total_holders: metrics?.total_holders ?? null,
+    },
+  };
+}
+
 // ── Core validation ─────────────────────────────────────────────────
 
 export async function validateSignal(
@@ -88,14 +140,12 @@ export async function validateSignal(
   // Mark as validating
   updateSignal(db, signal.id, { status: "VALIDATING" });
 
-  // ── Fetch token info ──────────────────────────────────────────────
+  // ── Fetch token info (DexScreener → Nansen fallback) ─────────────
 
-  const tokenInfoResult = await getTokenInfo(signal.token_address, signal.chain);
+  const tokenResult = await fetchTokenData(signal.token_address, signal.chain);
 
-  if (!tokenInfoResult.success || !tokenInfoResult.data) {
-    logger.error(`Token info fetch failed for ${signal.token_address}`, {
-      error: tokenInfoResult.error,
-    });
+  if (!tokenResult) {
+    logger.error(`Token info unavailable for ${signal.token_address}`);
     updateSignal(db, signal.id, {
       status: "FILTERED",
       filter_reason: "TOKEN_INFO_UNAVAILABLE",
@@ -104,26 +154,9 @@ export async function validateSignal(
     return { passed: false, enrichment: null, failReasons: ["TOKEN_INFO_UNAVAILABLE"], tokenInfo: null };
   }
 
-  // Navigate the real CLI response structure
-  const raw = tokenInfoResult.data as unknown as RawTokenInfoPayload;
-  const details = raw.data?.token_details;
-  const metrics = raw.data?.spot_metrics;
+  const tokenInfo = tokenResult.data;
 
-  // Use FDV as fallback when market cap is 0/null (common for pump.fun tokens)
-  const mcap = details?.market_cap_usd && details.market_cap_usd > 0
-    ? details.market_cap_usd
-    : details?.fdv_usd ?? null;
-
-  const tokenInfo = {
-    liquidity_usd: metrics?.liquidity_usd ?? null,
-    volume_24h_usd: metrics?.volume_total_usd ?? null,
-    market_cap_usd: mcap,
-    top_10_holder_pct: null as number | null, // Not directly available from this endpoint
-    created_at: details?.token_deployment_date ?? null,
-    total_holders: metrics?.total_holders ?? null,
-  };
-
-  // ── Safety filters (Section 4.6 — ALL must pass) ─────────────────
+  // ── Safety filters (ALL must pass) ───────────────────────────────
 
   // 1. Liquidity
   if (tokenInfo.liquidity_usd !== null && tokenInfo.liquidity_usd < config.validation.minLiquidityUsd) {
@@ -140,7 +173,7 @@ export async function validateSignal(
     failReasons.push(`Market cap $${tokenInfo.market_cap_usd.toFixed(0)} < $${config.validation.minMcapUsd}`);
   }
 
-  // 4. Top 10 holders — skip if data unavailable from this endpoint
+  // 4. Top 10 holders — skip if data unavailable
   // (Will be checked via flow-intelligence or separate endpoint when available)
 
   // 5. Token age
@@ -152,23 +185,11 @@ export async function validateSignal(
     }
   }
 
-  // 6. SM net direction — fetch netflow
-  const netflowResult = await getSmNetflow(signal.chain, signal.token_address);
-  let netflowForEnrichment: { net_flow_usd: number } | null = null;
+  // 6. SM net direction — computed locally from sm_trades (free)
+  const netflow = getTokenNetflow(db, signal.token_address, signal.chain, config.convergence.windowHours);
 
-  if (netflowResult.success && netflowResult.data) {
-    const nfPayload = netflowResult.data as unknown as RawNetflowPayload;
-    const entries = nfPayload.data ?? [];
-    const entry = entries.find(
-      (e) => e.token_address === signal.token_address,
-    ) ?? (entries.length > 0 ? entries[0] : null);
-
-    if (entry && typeof entry.net_flow_usd === "number") {
-      netflowForEnrichment = { net_flow_usd: entry.net_flow_usd };
-      if (entry.net_flow_usd < 0) {
-        failReasons.push(`SM net direction negative: $${entry.net_flow_usd.toFixed(0)}`);
-      }
-    }
+  if (netflow.netFlowUsd < config.validation.minNetflowUsd) {
+    failReasons.push(`SM net direction $${netflow.netFlowUsd.toFixed(0)} < $${config.validation.minNetflowUsd}`);
   }
 
   // ── Check if all filters passed ──────────────────────────────────
@@ -177,6 +198,7 @@ export async function validateSignal(
     logger.validate(`Validation FAILED for ${signal.token_symbol ?? signal.token_address}`, {
       signalId: signal.id,
       reasons: failReasons,
+      source: tokenResult.source,
     });
     updateSignal(db, signal.id, {
       status: "FILTERED",
@@ -195,10 +217,10 @@ export async function validateSignal(
     dcaCount = (dcaPayload.data ?? []).length;
   }
 
-  // Build minimal enrichment inputs matching the scoring interface
+  // Build enrichment inputs — use local netflow data
   const enrichment = applyEnrichmentBonuses({
     baseScore: signal.convergence_score,
-    netflow: netflowForEnrichment ? { net_flow_usd: netflowForEnrichment.net_flow_usd } as Parameters<typeof applyEnrichmentBonuses>[0]["netflow"] : null,
+    netflow: { net_flow_usd: netflow.netFlowUsd } as Parameters<typeof applyEnrichmentBonuses>[0]["netflow"],
     dcas: dcaCount > 0 ? Array.from({ length: dcaCount }, () => ({} as Parameters<typeof applyEnrichmentBonuses>[0]["dcas"] extends (infer U)[] | undefined ? U : never)) : [],
   });
 
@@ -220,6 +242,8 @@ export async function validateSignal(
     netflowBonus: enrichment.netflowBonus,
     dcaBonus: enrichment.dcaBonus,
     status: finalStatus,
+    source: tokenResult.source,
+    localNetflow: netflow.netFlowUsd,
   });
 
   return { passed: true, enrichment, failReasons: [], tokenInfo };
