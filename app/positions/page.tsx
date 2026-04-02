@@ -24,6 +24,10 @@ interface Position {
   total_fees: number;
   opened_at: string;
   closed_at: string | null;
+  current_price: number | null;
+  current_value_usd: number | null;
+  unrealized_pnl: number | null;
+  unrealized_pnl_pct: number | null;
 }
 
 export default function PositionsPage() {

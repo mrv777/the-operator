@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { formatUsd, formatPnl, formatPct, truncateAddress, solscanUrl, jupUrl, timeAgo } from "@/lib/utils/format";
+import { formatUsd, formatPnl, formatPct, truncateAddress, jupUrl, timeAgo } from "@/lib/utils/format";
 
 interface Position {
   id: number;
@@ -22,6 +22,10 @@ interface Position {
   total_fees: number;
   opened_at: string;
   closed_at: string | null;
+  current_price: number | null;
+  current_value_usd: number | null;
+  unrealized_pnl: number | null;
+  unrealized_pnl_pct: number | null;
 }
 
 const statusColors: Record<string, string> = {
@@ -49,12 +53,14 @@ export function PositionCards({ positions }: { positions: Position[] }) {
 }
 
 function PositionCard({ position: p }: { position: Position }) {
-  const pnlColor = p.realized_pnl >= 0 ? "text-profit" : "text-loss";
   const isOpen = p.status === "OPEN" || p.status === "PARTIALLY_CLOSED";
+  const pnl = isOpen ? p.unrealized_pnl : p.realized_pnl;
+  const pnlPct = p.unrealized_pnl_pct;
+  const pnlColor = (pnl ?? 0) >= 0 ? "text-profit" : "text-loss";
 
   return (
     <div className="bg-bg-card rounded-xl border border-border p-4 space-y-3">
-      {/* Header */}
+      {/* Header: token + status */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="text-lg font-semibold">{p.token_symbol ?? "???"}</span>
@@ -72,39 +78,65 @@ function PositionCard({ position: p }: { position: Position }) {
         </span>
       </div>
 
-      {/* Metrics grid */}
-      <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-        <div>
-          <span className="text-text-muted text-xs">Entry Price</span>
-          <p className="font-num">${p.entry_price.toPrecision(4)}</p>
-        </div>
-        <div>
-          <span className="text-text-muted text-xs">Entry Size</span>
-          <p className="font-num">{formatUsd(p.entry_amount_usd)}</p>
-        </div>
-        {p.highest_price_seen && (
+      {/* Live price + P&L hero (open positions only) */}
+      {isOpen && p.current_price != null && (
+        <div className="flex items-baseline justify-between py-1">
           <div>
-            <span className="text-text-muted text-xs">Peak Price</span>
+            <span className="text-text-muted text-xs">Current Price</span>
+            <p className="text-xl font-semibold font-num">${p.current_price.toPrecision(4)}</p>
+          </div>
+          <div className="text-right">
+            <span className="text-text-muted text-xs">Unrealized P&L</span>
+            <p className={cn("text-xl font-semibold font-num", pnlColor)}>
+              {pnl != null ? formatPnl(pnl) : "—"}
+            </p>
+            {pnlPct != null && (
+              <p className={cn("text-xs font-num", pnlColor)}>{formatPct(pnlPct)}</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Price ladder: entry → current → peak, with trailing stop */}
+      <div className="grid grid-cols-3 gap-x-2 text-sm">
+        <div>
+          <span className="text-text-muted text-xs">Entry</span>
+          <p className="font-num">${p.entry_price.toPrecision(4)}</p>
+          <p className="text-text-muted text-xs font-num">{formatUsd(p.entry_amount_usd)}</p>
+        </div>
+        {isOpen && p.trailing_stop_price ? (
+          <div>
+            <span className="text-text-muted text-xs">Stop</span>
+            <p className="font-num text-warning">${p.trailing_stop_price.toPrecision(4)}</p>
+            {p.mcap_tier && (
+              <p className="text-text-muted text-xs capitalize">{p.mcap_tier}</p>
+            )}
+          </div>
+        ) : (
+          <div>
+            {p.current_value_usd != null && (
+              <>
+                <span className="text-text-muted text-xs">Value</span>
+                <p className="font-num">{formatUsd(p.current_value_usd)}</p>
+              </>
+            )}
+          </div>
+        )}
+        {p.highest_price_seen ? (
+          <div className="text-right">
+            <span className="text-text-muted text-xs">Peak</span>
             <p className="font-num">${p.highest_price_seen.toPrecision(4)}</p>
           </div>
-        )}
-        {p.trailing_stop_price && isOpen && (
-          <div>
-            <span className="text-text-muted text-xs">Trailing Stop</span>
-            <p className="font-num text-warning">${p.trailing_stop_price.toPrecision(4)}</p>
-          </div>
-        )}
-        {p.mcap_tier && (
-          <div>
-            <span className="text-text-muted text-xs">Mcap Tier</span>
-            <p className="text-text-secondary capitalize">{p.mcap_tier}</p>
-          </div>
-        )}
+        ) : <div />}
+      </div>
+
+      {/* Closed position P&L */}
+      {!isOpen && (
         <div>
           <span className="text-text-muted text-xs">Realized P&L</span>
           <p className={cn("font-num font-semibold", pnlColor)}>{formatPnl(p.realized_pnl)}</p>
         </div>
-      </div>
+      )}
 
       {/* Footer */}
       <div className="flex items-center justify-between text-xs text-text-muted pt-1 border-t border-border/50">
