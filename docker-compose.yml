@@ -10,6 +10,7 @@ services:
       CONFIG_PATH: /app/data/config.json
     volumes:
       - operator-data:/app/data
+      - nansen-cli:/root/.nansen
 
   web:
     build:
@@ -29,3 +30,4 @@ services:
 
 volumes:
   operator-data:
+  nansen-cli:
