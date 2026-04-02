@@ -83,12 +83,38 @@ function sleep(ms: number): Promise<void> {
 
 function execNansenCli(command: string): string {
   const fullCommand = `nansen ${command}`;
-  const output = execSync(fullCommand, {
-    encoding: "utf-8",
-    timeout: 30_000,
-    env: { ...process.env },
-  });
-  return output.trim();
+  try {
+    const output = execSync(fullCommand, {
+      encoding: "utf-8",
+      timeout: 30_000,
+      env: { ...process.env },
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    return output.trim();
+  } catch (err: unknown) {
+    // execSync throws on non-zero exit — extract the actual CLI output
+    const execErr = err as { stderr?: string; stdout?: string; message?: string };
+    const output = (execErr.stderr || execErr.stdout || "").trim();
+
+    // Try to parse structured Nansen error JSON for a clearer message
+    try {
+      const jsonStart = output.indexOf("{");
+      if (jsonStart !== -1) {
+        const parsed = JSON.parse(output.substring(jsonStart));
+        const code = parsed.code ?? "";
+        const detail = parsed.error ?? parsed.details?.error ?? "";
+        if (code || detail) {
+          throw new Error(`${code || "NANSEN_ERROR"}: ${detail}`);
+        }
+      }
+    } catch (parseErr) {
+      if (parseErr instanceof Error && parseErr.message.includes(":")) {
+        throw parseErr; // re-throw our formatted error
+      }
+    }
+    // Fallback: use whatever output we got, or the original error
+    throw new Error(output || (execErr.message ?? "Nansen CLI failed"));
+  }
 }
 
 function parseCliOutput<T>(raw: string): T {
