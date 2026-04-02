@@ -1,6 +1,7 @@
 import { getDb } from "@/lib/db/schema";
 import { getAgentState, setAgentState, updateSignal } from "@/lib/db/queries";
 import { configureClient } from "@/lib/nansen/client";
+import { getAccountInfo } from "@/lib/nansen/endpoints";
 import { initLogger, logger } from "@/lib/utils/logger";
 import { loadConfig } from "./config";
 import { scanSmDexTrades } from "./scanner";
@@ -135,6 +136,15 @@ async function runCycle(
       error: err instanceof Error ? err.message : String(err),
     });
   }
+
+  // ── 7. CREDITS — check Nansen credit balance ──────────────────────
+  try {
+    const account = getAccountInfo();
+    if (account) {
+      setAgentState(db, "nansen_credits", String(account.credits_remaining));
+      setAgentState(db, "nansen_plan", account.plan);
+    }
+  } catch { /* non-critical */ }
 
   // Update cycle stats
   const totalScans = parseInt(getAgentState(db, "total_scans") ?? "0", 10) + 1;

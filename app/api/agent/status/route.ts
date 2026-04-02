@@ -36,6 +36,9 @@ export async function GET(req: NextRequest) {
       !!lastScanAt &&
       Date.now() - new Date(lastScanAt).getTime() < 20 * 60 * 1000; // consider alive if scanned in last 20 min
 
+    const nansenCredits = getAgentState(db, "nansen_credits");
+    const nansenPlan = getAgentState(db, "nansen_plan");
+
     return Response.json({
       status: paused ? "PAUSED" : isRunning ? "RUNNING" : "STOPPED",
       agentStartedAt,
@@ -46,6 +49,8 @@ export async function GET(req: NextRequest) {
       signalsToday: signalsToday.count,
       portfolioValue: latestSnapshot?.total_value_usd ?? cashBalance,
       totalPnl: latestSnapshot?.total_realized_pnl ?? 0,
+      nansenCredits: nansenCredits != null ? Number(nansenCredits) : null,
+      nansenPlan: nansenPlan ?? null,
     });
   } finally {
     db.close();

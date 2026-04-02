@@ -10,6 +10,7 @@ interface AgentStatusData {
   agentStartedAt: string | null;
   lastScanAt: string | null;
   totalScans: number;
+  nansenCredits: number | null;
 }
 
 export function AgentStatus() {
@@ -60,6 +61,13 @@ export function AgentStatus() {
       <span className="text-text-muted">
         Scans: <span className="font-num">{data.totalScans}</span>
       </span>
+      {data.nansenCredits != null && (
+        <span className={cn(
+          data.nansenCredits <= 0 ? "text-loss font-bold" : data.nansenCredits < 500 ? "text-warning" : "text-text-muted"
+        )}>
+          Credits: <span className="font-num">{data.nansenCredits.toLocaleString()}</span>
+        </span>
+      )}
     </div>
   );
 }

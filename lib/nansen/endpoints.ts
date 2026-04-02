@@ -22,6 +22,29 @@ import type {
   NansenCliResult,
 } from "./types";
 
+// ── Account ─────────────────────────────────────────────────────────
+
+export interface AccountInfo {
+  plan: string;
+  credits_remaining: number;
+}
+
+export function getAccountInfo(): AccountInfo | null {
+  try {
+    const raw = nansenCliCallRaw("account");
+    const jsonStart = raw.indexOf("{");
+    if (jsonStart === -1) return null;
+    const parsed = JSON.parse(raw.substring(jsonStart));
+    const data = parsed.data ?? parsed;
+    return {
+      plan: data.plan ?? "unknown",
+      credits_remaining: data.credits_remaining ?? 0,
+    };
+  } catch {
+    return null;
+  }
+}
+
 // ── Smart Money Domain (6 endpoints) ────────────────────────────────
 
 export function getSmDexTrades(
