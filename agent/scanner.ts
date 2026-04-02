@@ -158,7 +158,8 @@ export async function scanSmDexTrades(
     const response = await getSmDexTrades(chain);
 
     if (!response.success || !response.data) {
-      logger.error(`SM dex-trades fetch failed for ${chain}`, {
+      const reason = response.error ?? "Unknown error";
+      logger.error(`SM dex-trades fetch failed for ${chain}: ${reason}`, {
         error: response.error,
         cached: response.cached,
       });

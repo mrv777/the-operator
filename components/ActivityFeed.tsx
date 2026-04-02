@@ -70,8 +70,20 @@ export function ActivityFeed() {
     }
   }, [events]);
 
+  // Find the most recent error in the last 30 minutes
+  const recentError = events
+    .filter((ev) => ev.event_type === "ERROR")
+    .filter((ev) => Date.now() - new Date(ev.created_at).getTime() < 30 * 60 * 1000)
+    .at(-1);
+
   return (
     <div className="bg-bg-card rounded-xl border border-border p-4">
+      {recentError && (
+        <div className="mb-3 px-3 py-2 rounded-lg bg-loss/10 border border-loss/30 flex items-center gap-2">
+          <span className="text-loss text-sm font-bold shrink-0">&#9888;</span>
+          <span className="text-loss text-xs font-mono">{recentError.message}</span>
+        </div>
+      )}
       <p className="text-xs text-text-muted uppercase tracking-wider mb-3">Activity Feed</p>
       <div ref={containerRef} className="h-64 overflow-y-auto space-y-1 text-sm font-mono">
         {events.length === 0 && (
