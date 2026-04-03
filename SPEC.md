@@ -185,6 +185,9 @@ Maintain a **rolling 24-hour window** of SM buy events per token.
 |--------|-------|--------|
 | Netflow confirmation | +5 to +10 points | `sm netflow` — positive netflow = bonus |
 | DCA presence | +5 to +10 points | `sm dcas` — DCA orders = strong conviction |
+| Wallet win-rate quality | -5 to +10 points | `profiler pnl-summary` — avg win rate across wallets |
+
+Wallet win-rate tiers: ≥60% = +10, ≥50% = +5, ≥40% = 0, <40% = -5. Wallets with no profiler data are skipped (fail-open). Profiler results cached 1 hour.
 
 **Minimum score to proceed to validation: 50**
 **Minimum score to auto-trade: 70**
@@ -218,12 +221,16 @@ nansen smart-money netflow --chain solana --token <address>
 
 | Filter | Default Threshold | Configurable Key | Why |
 |--------|-------------------|------------------|-----|
+| GoPlus security | No dangerous flags | — | Reject honeypots, malicious mint/freeze authority, balance-mutable tokens |
 | Liquidity | > $100K | `minLiquidityUsd` | Avoid illiquid traps |
 | 24h Volume | > $50K | `minVolume24hUsd` | Ensure we can exit |
 | Market Cap | > $500K | `minMcapUsd` | Filter dust tokens |
 | Top 10 holders | < 50% supply | `maxTop10HolderPct` | Avoid concentrated ownership (rug risk) |
 | Token age | > 3 days | `minTokenAgeDays` | Avoid brand-new scam tokens (configurable, default 3) |
 | SM net direction | Net positive | — | Confirm SM is accumulating, not mixed |
+
+**GoPlus Security Check** (free, no auth, fail-open):
+Calls the GoPlus Security API before market-data filters. Hard-fails on: balance mutable authority, non-transferable tokens, closable token accounts, malicious mint/freeze authority, hidden transfer fees. Trusted tokens (e.g., USDC) bypass all checks. API errors or unknown tokens are treated as safe (fail-open) — GoPlus downtime never blocks trades.
 
 If validation passes AND score >= 70 → proceed to execution.
 If validation passes AND score 50-69 → add to watchlist (`WATCHING`), do not auto-trade.
@@ -711,10 +718,12 @@ All runtime-tunable parameters live in a single `config.json` file at the projec
 |----------|-------------|-------|
 | SM dex-trades scanning (6/hr × 24h × ~50 credits) | ~7,200 | Core scheduled scan |
 | On-demand validation (~5-10 signals/day × ~200 credits each) | ~1,000-2,000 | Netflow, holdings, token info, etc. |
+| Wallet profiling (~3-5 wallets × ~50 credits, 1hr cache) | ~750-2,500 | `profiler pnl-summary`, cached aggressively |
 | Position monitoring (SM netflow checks, cached) | ~500-1,000 | Cached aggressively |
-| **Total** | **~8,700-10,200** | |
+| GoPlus security checks | 0 | Free API, no auth |
+| **Total** | **~9,450-12,700** | |
 
-**Estimated daily cost: ~$10-15/day** (within budget target of $10-20/day)
+**Estimated daily cost: ~$10-18/day** (within budget target of $10-20/day)
 
 > **RISK ITEM:** Credit costs and rate limits need to be verified against actual Nansen tier. These are estimates based on 10x multiplier assumption.
 
@@ -844,6 +853,10 @@ NANSEN_WALLET_PASSWORD=            # Wallet password for trade execution (TBD if
 # Dashboard Auth
 DASHBOARD_TOKEN=                   # Bearer token for dashboard API auth
 
+# Telegram Alerts (optional — silently skipped if not set)
+TELEGRAM_BOT_TOKEN=                # Bot token from @BotFather
+TELEGRAM_CHAT_ID=                  # Chat/group ID for alerts
+
 # Database
 DATABASE_PATH=./data/operator.db   # SQLite database path
 
@@ -885,12 +898,18 @@ nansen-ai3/
 │   │   ├── types.ts                # Response types (defined from docs, adjusted after testing)
 │   │   └── endpoints.ts            # Typed functions for each endpoint
 │   ├── prices/
-│   │   └── jupiter.ts              # Jupiter Price API client (free, real-time)
+│   │   ├── jupiter.ts              # Jupiter Price API client (free, real-time)
+│   │   └── dexscreener.ts          # DexScreener API (free, no auth)
+│   ├── security/
+│   │   └── goplus.ts               # GoPlus Security API — token safety checks (free)
+│   ├── notifications/
+│   │   ├── telegram.ts             # Telegram Bot API — send alerts (optional)
+│   │   └── formatters.ts           # Format events into readable alert messages
 │   ├── db/
 │   │   ├── schema.ts               # SQLite schema + migrations + WAL setup
 │   │   └── queries.ts              # All database operations
 │   ├── scoring/
-│   │   └── convergence-score.ts    # Convergence scoring algorithm
+│   │   └── convergence-score.ts    # Convergence scoring + enrichment bonuses
 │   └── utils/
 │       ├── format.ts               # Number/date formatting
 │       └── logger.ts               # Structured logging

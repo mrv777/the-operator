@@ -1,5 +1,5 @@
 import { getDb } from "@/lib/db/schema";
-import { getAgentState, setAgentState, updateSignal } from "@/lib/db/queries";
+import { getAgentState, setAgentState, updateSignal, getTradesBySignal } from "@/lib/db/queries";
 import { configureClient } from "@/lib/nansen/client";
 import { getAccountInfo } from "@/lib/nansen/endpoints";
 import { initLogger, logger } from "@/lib/utils/logger";
@@ -13,6 +13,13 @@ import { validateSignal } from "./validator";
 import { executeSignalTrade } from "./executor";
 import { checkAllPositions } from "./position-manager";
 import { shouldTakeSnapshot, writePortfolioSnapshot } from "./portfolio";
+import { sendTelegramAlert } from "@/lib/notifications/telegram";
+import {
+  formatSignalAlert,
+  formatTradeAlert,
+  formatSecurityAlert,
+  formatExecutionFailedAlert,
+} from "@/lib/notifications/formatters";
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -51,6 +58,18 @@ async function runCycle(
     // Persist (insert or update) the signal first
     const signal = persistConvergenceEvent(db, event);
 
+    // Notify on new signals (not updates to existing)
+    if (event.existingSignalId === null) {
+      sendTelegramAlert(formatSignalAlert(
+        signal.token_symbol ?? signal.token_address,
+        signal.token_address,
+        signal.convergence_score,
+        signal.wallet_count,
+        signal.combined_volume_usd ?? 0,
+        signal.is_contested === 1,
+      )).catch(() => {});
+    }
+
     // Skip validation if score below minimum validation threshold
     if (signal.convergence_score < config.convergence.minValidationScore) {
       logger.signal(
@@ -81,6 +100,15 @@ async function runCycle(
     const validation = await validateSignal(db, signal, config);
 
     if (!validation.passed) {
+      // Notify on security-related blocks
+      const securityReasons = validation.failReasons.filter((r) => r.startsWith("GoPlus:"));
+      if (securityReasons.length > 0) {
+        sendTelegramAlert(formatSecurityAlert(
+          signal.token_symbol ?? signal.token_address,
+          signal.token_address,
+          securityReasons,
+        )).catch(() => {});
+      }
       continue; // validator already updates signal status to FILTERED
     }
 
@@ -104,10 +132,25 @@ async function runCycle(
 
       if (result.success) {
         updateSignal(db, signal.id, { status: "TRADED" });
+        const filledTrade = getTradesBySignal(db, signal.id).find(
+          (t) => t.status === "FILLED" && t.direction === "BUY",
+        );
+        sendTelegramAlert(formatTradeAlert(
+          signal.token_symbol ?? signal.token_address,
+          "BUY",
+          filledTrade?.amount_usd ?? 0,
+          result.txHash,
+        )).catch(() => {});
       } else {
         logger.trade(`Execution skipped/failed for signal #${signal.id}: ${result.reason}`, {
           signalId: signal.id,
         });
+        if (result.reason === "EXEC_FAILED" || result.reason === "TX_FAILED") {
+          sendTelegramAlert(formatExecutionFailedAlert(
+            signal.token_symbol ?? signal.token_address,
+            result.reason,
+          )).catch(() => {});
+        }
       }
     } else {
       logger.signal(

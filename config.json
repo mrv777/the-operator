@@ -59,7 +59,8 @@
     "perEndpoint": {
       "token-info": 300000,
       "sm-dex-trades": 300000,
-      "sm-netflow": 600000
+      "sm-netflow": 600000,
+      "profiler-pnl": 3600000
     }
   },
   "retry": {

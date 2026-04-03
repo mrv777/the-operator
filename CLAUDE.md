@@ -26,6 +26,8 @@ docker compose up -d  # Run both containers
 - `lib/nansen/` — CLI wrapper with TTL cache, retry, text parsers for trade commands
 - `lib/db/` — SQLite schema + query functions
 - `lib/prices/jupiter.ts` — Jupiter Price API for position monitoring (free)
+- `lib/security/goplus.ts` — GoPlus Security API for token safety checks (free, fail-open)
+- `lib/notifications/telegram.ts` — Telegram alerts for signals, trades, exits (optional)
 - `app/api/` — Dashboard API routes (all require bearer token auth)
 
 ## Deployment

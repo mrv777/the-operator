@@ -25,6 +25,7 @@ const ENDPOINT_KEY_MAP: Record<string, string> = {
   "token-info": "token info",
   "token-flow": "flow-intelligence",
   "token-dex-trades": "token dex-trades",
+  "profiler-pnl": "profiler pnl-summary",
 };
 
 export function getCacheTtl(command: string, perEndpoint?: Record<string, number>): number {

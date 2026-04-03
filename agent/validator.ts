@@ -3,11 +3,12 @@ import type { Config } from "./config";
 import type { SignalRow } from "@/lib/db/queries";
 import { updateSignal, getTokenNetflow } from "@/lib/db/queries";
 import { getDexScreenerToken } from "@/lib/prices/dexscreener";
-import { getTokenInfo, getSmDcas } from "@/lib/nansen/endpoints";
+import { getTokenInfo, getSmDcas, getProfilerPnlSummary } from "@/lib/nansen/endpoints";
 import {
   applyEnrichmentBonuses,
   type EnrichmentResult,
 } from "@/lib/scoring/convergence-score";
+import { checkTokenSecurity } from "@/lib/security/goplus";
 import { logger } from "@/lib/utils/logger";
 
 // ── Real CLI response shapes (after client unwrap) ──────────────────
@@ -156,6 +157,22 @@ export async function validateSignal(
 
   const tokenInfo = tokenResult.data;
 
+  // ── GoPlus security check (free, fail-open) ─────────────────────
+  const security = await checkTokenSecurity(signal.token_address);
+  if (!security.safe) {
+    for (const reason of security.reasons) {
+      failReasons.push(`GoPlus: ${reason}`);
+    }
+    logger.validate(`GoPlus security FAILED for ${signal.token_symbol ?? signal.token_address}`, {
+      signalId: signal.id,
+      reasons: security.reasons,
+    });
+  } else {
+    logger.validate(`GoPlus security passed for ${signal.token_symbol ?? signal.token_address}`, {
+      signalId: signal.id,
+    });
+  }
+
   // ── Safety filters (ALL must pass) ───────────────────────────────
 
   // 1. Liquidity
@@ -208,7 +225,7 @@ export async function validateSignal(
     return { passed: false, enrichment: null, failReasons, tokenInfo };
   }
 
-  // ── On-demand enrichment (netflow + DCA bonuses) ─────────────────
+  // ── On-demand enrichment (netflow + DCA + wallet quality bonuses) ─
 
   let dcaCount = 0;
   const dcaResult = await getSmDcas(signal.chain, signal.token_address);
@@ -217,11 +234,56 @@ export async function validateSignal(
     dcaCount = (dcaPayload.data ?? []).length;
   }
 
+  // ── Wallet win-rate profiling ────────────────────────────────────
+  let walletQualityBonus = 0;
+  try {
+    const wallets: { address: string }[] = JSON.parse(signal.wallets_json ?? "[]");
+    const buyWallets = [...new Set(wallets.map((w) => w.address))];
+
+    const winRates: number[] = [];
+    for (const wallet of buyWallets) {
+      const profilerResult = await getProfilerPnlSummary(wallet, signal.chain);
+      if (profilerResult.success && profilerResult.data) {
+        const pnl = (profilerResult.data as unknown as { data: { win_rate?: number } }).data;
+        if (typeof pnl?.win_rate === "number") {
+          winRates.push(pnl.win_rate);
+        }
+      }
+    }
+
+    if (winRates.length > 0) {
+      const avgWinRate = winRates.reduce((s, r) => s + r, 0) / winRates.length;
+      if (avgWinRate >= 0.6) walletQualityBonus = 10;
+      else if (avgWinRate >= 0.5) walletQualityBonus = 5;
+      else if (avgWinRate >= 0.4) walletQualityBonus = 0;
+      else walletQualityBonus = -5;
+
+      logger.validate(`Wallet profiling for ${signal.token_symbol ?? signal.token_address}`, {
+        signalId: signal.id,
+        walletsProfiled: winRates.length,
+        walletsTotal: buyWallets.length,
+        avgWinRate: avgWinRate.toFixed(3),
+        walletQualityBonus,
+        winRates,
+      });
+    } else {
+      logger.validate(`No wallet profiler data available for ${signal.token_symbol ?? signal.token_address}`, {
+        signalId: signal.id,
+        walletsAttempted: buyWallets.length,
+      });
+    }
+  } catch (err) {
+    logger.warn(`Wallet profiling failed for signal #${signal.id}`, {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+
   // Build enrichment inputs — use local netflow data
   const enrichment = applyEnrichmentBonuses({
     baseScore: signal.convergence_score,
     netflow: { net_flow_usd: netflow.netFlowUsd } as Parameters<typeof applyEnrichmentBonuses>[0]["netflow"],
     dcas: dcaCount > 0 ? Array.from({ length: dcaCount }, () => ({} as Parameters<typeof applyEnrichmentBonuses>[0]["dcas"] extends (infer U)[] | undefined ? U : never)) : [],
+    walletQualityBonus,
   });
 
   // Update signal with enriched score and mark as passed
@@ -241,6 +303,7 @@ export async function validateSignal(
     enrichedScore: enrichment.enrichedScore,
     netflowBonus: enrichment.netflowBonus,
     dcaBonus: enrichment.dcaBonus,
+    walletQualityBonus: enrichment.walletQualityBonus,
     status: finalStatus,
     source: tokenResult.source,
     localNetflow: netflow.netFlowUsd,

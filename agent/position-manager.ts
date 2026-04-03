@@ -7,6 +7,8 @@ import { getSmNetflow } from "@/lib/nansen/endpoints";
 import { getTokenInfo } from "@/lib/nansen/endpoints";
 import { executeSellTrade } from "./executor";
 import { logger } from "@/lib/utils/logger";
+import { sendTelegramAlert } from "@/lib/notifications/telegram";
+import { formatExitAlert } from "@/lib/notifications/formatters";
 
 // ── Types ───────────────────────────────────────────────────────────
 
@@ -282,45 +284,36 @@ async function checkSinglePosition(
     mcapTier: position.mcap_tier,
   });
 
-  // ── Check all 6 exit conditions (first triggered wins) ─────────
+  // ── Check all exit conditions (first triggered wins) ──────────
+  const checks: { check: ExitCheck; label: string }[] = [
+    { check: checkEmergencyStop(position, currentPrice, config), label: "EMERGENCY_STOP" },
+    { check: checkTrailingStop(position, currentPrice), label: "TRAILING_STOP" },
+  ];
 
-  // 1. Emergency stop (highest priority — prevent catastrophic loss)
-  const emergencyCheck = checkEmergencyStop(position, currentPrice, config);
-  if (emergencyCheck.triggered) {
-    logger.exit(`EXIT: ${symbol} — ${emergencyCheck.reason}`, { positionId: position.id });
-    await executeSellTrade(db, position, emergencyCheck.sellPct, "EMERGENCY_STOP", config);
-    return;
-  }
-
-  // 2. Trailing stop
-  const trailingCheck = checkTrailingStop(position, currentPrice);
-  if (trailingCheck.triggered) {
-    logger.exit(`EXIT: ${symbol} — ${trailingCheck.reason}`, { positionId: position.id });
-    await executeSellTrade(db, position, trailingCheck.sellPct, "TRAILING_STOP", config);
-    return;
-  }
-
-  // 3. SM exit detected (async — involves API call)
+  // 3. SM exit (async)
   const smCheck = await checkSmExit(position);
-  if (smCheck.triggered) {
-    logger.exit(`EXIT: ${symbol} — ${smCheck.reason}`, { positionId: position.id });
-    await executeSellTrade(db, position, smCheck.sellPct, "SM_EXIT", config);
-    return;
-  }
+  checks.push({ check: smCheck, label: "SM_EXIT" });
 
-  // 4. Take profit tiers
-  const tpCheck = checkTakeProfitTiers(position, currentPrice, config);
-  if (tpCheck.triggered) {
-    logger.exit(`EXIT: ${symbol} — ${tpCheck.reason}`, { positionId: position.id });
-    await executeSellTrade(db, position, tpCheck.sellPct, tpCheck.reason, config);
-    return;
-  }
+  checks.push(
+    { check: checkTakeProfitTiers(position, currentPrice, config), label: "TAKE_PROFIT" },
+    { check: checkTimeExit(position, currentPrice, config), label: "TIME_EXIT" },
+  );
 
-  // 5. Time exit
-  const timeCheck = checkTimeExit(position, currentPrice, config);
-  if (timeCheck.triggered) {
-    logger.exit(`EXIT: ${symbol} — ${timeCheck.reason}`, { positionId: position.id });
-    await executeSellTrade(db, position, timeCheck.sellPct, "TIME_EXIT", config);
+  for (const { check, label } of checks) {
+    if (!check.triggered) continue;
+
+    const exitReason = label === "TAKE_PROFIT" ? check.reason : label;
+    logger.exit(`EXIT: ${symbol} — ${check.reason}`, { positionId: position.id });
+    const sellResult = await executeSellTrade(db, position, check.sellPct, exitReason, config);
+
+    if (sellResult.success) {
+      const pnlUsd = ((currentPrice - position.entry_price) / position.entry_price)
+        * position.entry_amount_usd * (check.sellPct / 100);
+      const pnlPct = ((currentPrice - position.entry_price) / position.entry_price) * 100;
+      sendTelegramAlert(formatExitAlert(
+        symbol, exitReason, pnlUsd, pnlPct, sellResult.txHash,
+      )).catch(() => {});
+    }
     return;
   }
 }

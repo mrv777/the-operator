@@ -128,17 +128,20 @@ export interface EnrichmentInput {
   baseScore: number;
   netflow?: SmNetflowEntry | null;
   dcas?: SmDca[];
+  walletQualityBonus?: number;
 }
 
 export interface EnrichmentResult {
   enrichedScore: number;
   netflowBonus: number;
   dcaBonus: number;
+  walletQualityBonus: number;
 }
 
 export function applyEnrichmentBonuses(input: EnrichmentInput): EnrichmentResult {
   let netflowBonus = 0;
   let dcaBonus = 0;
+  const walletQualityBonus = input.walletQualityBonus ?? 0;
 
   // Netflow: positive net_flow_usd = +5 to +10
   if (input.netflow && input.netflow.net_flow_usd > 0) {
@@ -151,7 +154,10 @@ export function applyEnrichmentBonuses(input: EnrichmentInput): EnrichmentResult
     dcaBonus = input.dcas.length >= 3 ? 10 : 5;
   }
 
-  const enrichedScore = Math.min(input.baseScore + netflowBonus + dcaBonus, 100);
+  const enrichedScore = Math.min(
+    Math.max(input.baseScore + netflowBonus + dcaBonus + walletQualityBonus, 0),
+    100,
+  );
 
-  return { enrichedScore, netflowBonus, dcaBonus };
+  return { enrichedScore, netflowBonus, dcaBonus, walletQualityBonus };
 }
