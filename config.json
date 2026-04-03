@@ -21,7 +21,7 @@
     "minVolume24hUsd": 10000,
     "minMcapUsd": 50000,
     "maxTop10HolderPct": 50,
-    "minTokenAgeDays": 1,
+    "minTokenAgeDays": 0.25,
     "minNetflowUsd": -5000
   },
   "execution": {
